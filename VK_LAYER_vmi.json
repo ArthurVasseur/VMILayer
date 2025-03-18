@@ -1,0 +1,17 @@
+{
+    "file_format_version" : "1.1.2",
+    "layer" : {
+      "name": "VK_LAYER_AV_vki",
+      "type": "GLOBAL",
+      "library_path": "C:/Users/Arthur/Documents/Git/GraphicsEngineInspector/build/windows/x64/debug/vmi-layer.dll",
+      "api_version": "1.0.0",
+      "implementation_version": "1",
+      "description": "Vulkan memory inspector layer",
+      "enable_environment": {
+        "ENABLE_VMI_LAYER": "1"
+      },
+      "disable_environment": {
+        "DISABLE_VMI_LAYER": "1"
+      }
+    }
+  }
