@@ -12,19 +12,19 @@ inline VulkanMemoryInspector& VulkanMemoryInspector::GetInstance()
 	return instance;
 }
 
-inline void VulkanMemoryInspector::AddInstanceDispatchTable(void* instance, VkLayerInstanceDispatchTable table)
+inline void VulkanMemoryInspector::AddInstanceDispatchTable(void* instance, VkuInstanceDispatchTable table)
 {
 	std::lock_guard _(instanceDispatchTablesMutex);
 	instanceDispatchTables.emplace(instance, table);
 }
 
-inline void VulkanMemoryInspector::AddDeviceDispatchTable(void* device, VkLayerDispatchTable table)
+inline void VulkanMemoryInspector::AddDeviceDispatchTable(void* device, VkuDeviceDispatchTable table)
 {
 	std::lock_guard _(deviceDispatchTablesMutex);
 	deviceDispatchTables.emplace(device, table);
 }
 
-inline const VkLayerInstanceDispatchTable* VulkanMemoryInspector::GetInstanceDispatchTable(void* instance)
+inline const VkuInstanceDispatchTable* VulkanMemoryInspector::GetInstanceDispatchTable(void* instance)
 {
 	std::lock_guard _(instanceDispatchTablesMutex);
 
@@ -34,9 +34,24 @@ inline const VkLayerInstanceDispatchTable* VulkanMemoryInspector::GetInstanceDis
 	return &it->second;
 }
 
+inline const VkuDeviceDispatchTable* VulkanMemoryInspector::GetDeviceDispatchTable(void* device)
+{
+	std::lock_guard _(deviceDispatchTablesMutex);
+
+	auto it = deviceDispatchTables.find(device);
+	if (it == deviceDispatchTables.end())
+		return nullptr;
+	return &it->second;
+}
+
 inline VkAllocationCallbacks VulkanMemoryInspector::GetAllocationCallbacks() const
 {
 	return _allocationCallbacks;
+}
+
+inline duckdb::Connection& VulkanMemoryInspector::GetDataBaseConnection()
+{
+	return dbConnection;
 }
 
 

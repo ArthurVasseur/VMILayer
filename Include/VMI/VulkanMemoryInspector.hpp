@@ -8,6 +8,8 @@
 #include <mutex>
 #include <unordered_map>
 
+#include <duckdb.hpp>
+
 #include "VMI/VulkanFunctions.hpp"
 
 struct LowerAllocation
@@ -22,10 +24,12 @@ public:
 
 	static VulkanMemoryInspector& GetInstance();
 
-	void AddInstanceDispatchTable(void* instance, VkLayerInstanceDispatchTable table);
-	void AddDeviceDispatchTable(void* device, VkLayerDispatchTable table);
-	const VkLayerInstanceDispatchTable* GetInstanceDispatchTable(void* instance);
+	void AddInstanceDispatchTable(void* instance, VkuInstanceDispatchTable table);
+	void AddDeviceDispatchTable(void* device, VkuDeviceDispatchTable table);
+	const VkuInstanceDispatchTable* GetInstanceDispatchTable(void* instance);
+	const VkuDeviceDispatchTable* GetDeviceDispatchTable(void* device);
 	VkAllocationCallbacks GetAllocationCallbacks() const;
+	inline duckdb::Connection& GetDataBaseConnection();
 
 private:
 	static void* AllocationFunction(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope);
@@ -36,12 +40,14 @@ private:
 
 	static VulkanMemoryInspector instance;
 
-	std::unordered_map<void*, VkLayerInstanceDispatchTable> instanceDispatchTables;
+	std::unordered_map<void*, VkuInstanceDispatchTable> instanceDispatchTables;
 	std::mutex instanceDispatchTablesMutex;
 
-	std::unordered_map<void*, VkLayerDispatchTable> deviceDispatchTables;
+	std::unordered_map<void*, VkuDeviceDispatchTable> deviceDispatchTables;
 	std::mutex deviceDispatchTablesMutex;
 	VkAllocationCallbacks _allocationCallbacks;
+	duckdb::DuckDB db;
+	duckdb::Connection dbConnection;
 };
 
 #include "VMI/VulkanMemoryInspector.inl"

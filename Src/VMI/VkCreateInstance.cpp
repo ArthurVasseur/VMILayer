@@ -2,9 +2,11 @@
 // Created by arthur on 01/03/2025.
 //
 
+#include <vulkan/utility/vk_struct_helper.hpp>
+
 #include "VMI/VulkanFunctions.hpp"
 #include "VMI/VulkanMemoryInspector.hpp"
-#include "vulkan/vk_loader_extensions.c"
+
 
 VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkInstance* pInstance)
 {
@@ -16,12 +18,13 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 		return result;
 	}
 
-	auto* layerCreateInfo = (VkLayerInstanceCreateInfo*)pCreateInfo->pNext;
+	VkLayerInstanceCreateInfo *layerCreateInfo = (VkLayerInstanceCreateInfo *)pCreateInfo->pNext;
 
-	while (layerCreateInfo && (layerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO || layerCreateInfo->function != VK_LAYER_LINK_INFO))
-	{
-		layerCreateInfo = (VkLayerInstanceCreateInfo*)layerCreateInfo->pNext;
-	}
+	  while(layerCreateInfo && (layerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
+	                            layerCreateInfo->function != VK_LAYER_LINK_INFO))
+	  {
+	    layerCreateInfo = (VkLayerInstanceCreateInfo *)layerCreateInfo->pNext;
+	  }
 
 	if (layerCreateInfo == nullptr)
 	{
@@ -45,12 +48,12 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 		return result;
 	}
 
-	VkLayerInstanceDispatchTable dispatchTable = {};
-	loader_init_instance_core_dispatch_table(&dispatchTable, getProcAddr, *pInstance);
+	VkuInstanceDispatchTable dispatchTable = {};
+	vkuInitInstanceDispatchTable(*pInstance, &dispatchTable, getProcAddr);
 
 	VMI_CATCH_AND_RETURN(
 		VulkanMemoryInspector::GetInstance().AddInstanceDispatchTable(GEI_GET_KEY(pInstance), dispatchTable);
-	, VK_ERROR_INITIALIZATION_FAILED);
+	, VK_ERROR_INITIALIZATION_FAILED, vkCreateInstance(pCreateInfo, pAllocator, pInstance));
 
 	cct::Logger::Error("GEI everything ok returning ");
 	return VK_SUCCESS;

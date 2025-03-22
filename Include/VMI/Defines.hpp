@@ -14,8 +14,14 @@
 
 #define VMI_EXPORT extern "C" CCT_EXPORT
 
-#define VK_NO_PROTOTYPES
+#include <vulkan/vulkan.h>
 #include <vulkan/vk_layer.h>
-#include <vulkan/vk_layer_dispatch_table.h>
+#include "vulkan/utility/vk_dispatch_table.h"
+#include "vulkan/utility/vk_struct_helper.hpp"
 
+namespace vku
+{
+	template <> inline VkStructureType GetSType<VkLayerDeviceCreateInfo>() { return VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO; }
+	template <> inline VkStructureType GetSType<VkLayerInstanceCreateInfo>() { return VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO; }
+}
 #endif //GEI_DEFINES_HPP
