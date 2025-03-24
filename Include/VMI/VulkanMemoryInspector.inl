@@ -5,6 +5,7 @@
 #ifndef GEI_GRAPHICSENGINEINTERCEPTOR_INL
 #define GEI_GRAPHICSENGINEINTERCEPTOR_INL
 
+#include "Viewer.hpp"
 #include "VMI/VulkanMemoryInspector.hpp"
 
 inline VulkanMemoryInspector& VulkanMemoryInspector::GetInstance()
@@ -44,6 +45,14 @@ inline const VkuDeviceDispatchTable* VulkanMemoryInspector::GetDeviceDispatchTab
 	return &it->second;
 }
 
+inline vmi::Viewer* VulkanMemoryInspector::GetViewer(void* device)
+{
+	auto it = _viewers.find(device);
+	if (it == _viewers.end())
+		return nullptr;
+	return it->second.get();
+}
+
 inline VkAllocationCallbacks VulkanMemoryInspector::GetAllocationCallbacks() const
 {
 	return _allocationCallbacks;
@@ -52,6 +61,21 @@ inline VkAllocationCallbacks VulkanMemoryInspector::GetAllocationCallbacks() con
 inline duckdb::Connection& VulkanMemoryInspector::GetDataBaseConnection()
 {
 	return dbConnection;
+}
+
+inline VkResult VulkanMemoryInspector::CreateViewer(void* pDevice)
+{
+	duckdb::Connection connection(db);
+	
+	auto viewer = std::make_unique<vmi::Viewer>(std::move(connection));
+	auto result = viewer->Create();
+	if (result.IsError())
+	{
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", result.GetError().c_str(), nullptr);
+		return VK_ERROR_INITIALIZATION_FAILED;
+	}
+	_viewers.emplace(pDevice, std::move(viewer));
+	return VK_SUCCESS;
 }
 
 

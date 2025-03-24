@@ -43,7 +43,13 @@
 	};																					\
 	variableName.pUserData = static_cast<void*>(&lowerAllocation87)
 
-#define GEI_GET_KEY(ptr) *(void **)(ptr)
+//#define GEI_GET_KEY(ptr) *(void **)(ptr)
+template<typename DispatchableType>
+void* GetKey(DispatchableType inst)
+{
+	return *(void**)inst;
+}
+
 
 VMI_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance, const char* pName);
 VMI_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice instance, const char* pName);
@@ -59,5 +65,6 @@ VMI_EXPORT VkResult VKAPI_CALL vkAllocateMemory(VkDevice device, const VkMemoryA
 VMI_EXPORT void VKAPI_CALL vkFreeMemory(VkDevice device, VkDeviceMemory memory, const VkAllocationCallbacks* pAllocator);
 VMI_EXPORT VkResult VKAPI_CALL vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset);
 VMI_EXPORT VkResult VKAPI_CALL vkBindImageMemory(VkDevice device, VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset);
+VMI_EXPORT VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* pPresentInfo);
 
 #endif //GEI_VULKANFUNCTION_HPP

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 # Get the current directory (assume vk.xml is in the same directory)
 script_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
 vk_xml_path = os.path.join(script_dir, "vk.xml")
-output_path = os.path.join(script_dir, "vk_json_serializers.h")
+output_path = os.path.join(script_dir, "./Include/VMI/vk_json_serializers.hpp")
 
 # Parse the vk.xml file
 try:
@@ -29,7 +29,7 @@ header = '''\
 #include <nlohmann/json.hpp>
 #include <vulkan/vulkan.h>
 #include <string>
-#include "vk_enum_string_helper.h"
+#include <vulkan/vk_enum_string_helper.h>
 
 using json = nlohmann::json;
 
@@ -54,7 +54,7 @@ for t in root.findall("types/type"):
 
     # Begin function definition
     func_lines = []
-    func_lines.append(f"std::string ToJson(const {struct_name} &s) {{")
+    func_lines.append(f"inline std::string ToJson(const {struct_name} &s) {{")
     func_lines.append("    json j;")
 
     # Iterate through member elements.

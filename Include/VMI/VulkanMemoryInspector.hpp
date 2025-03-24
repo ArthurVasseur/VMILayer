@@ -12,6 +12,11 @@
 
 #include "VMI/VulkanFunctions.hpp"
 
+namespace vmi
+{
+	class Viewer;
+}
+
 struct LowerAllocation
 {
 	const VkAllocationCallbacks* allocationCallbacks;
@@ -28,8 +33,10 @@ public:
 	void AddDeviceDispatchTable(void* device, VkuDeviceDispatchTable table);
 	const VkuInstanceDispatchTable* GetInstanceDispatchTable(void* instance);
 	const VkuDeviceDispatchTable* GetDeviceDispatchTable(void* device);
+	vmi::Viewer* GetViewer(void* device);
 	VkAllocationCallbacks GetAllocationCallbacks() const;
 	inline duckdb::Connection& GetDataBaseConnection();
+	VkResult CreateViewer(void* pDevice);
 
 private:
 	static void* AllocationFunction(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope);
@@ -40,11 +47,13 @@ private:
 
 	static VulkanMemoryInspector instance;
 
-	std::unordered_map<void*, VkuInstanceDispatchTable> instanceDispatchTables;
 	std::mutex instanceDispatchTablesMutex;
+	std::unordered_map<void*, VkuInstanceDispatchTable> instanceDispatchTables;
 
-	std::unordered_map<void*, VkuDeviceDispatchTable> deviceDispatchTables;
 	std::mutex deviceDispatchTablesMutex;
+	std::unordered_map<void*, VkuDeviceDispatchTable> deviceDispatchTables;
+
+	std::unordered_map<void* /*device*/, std::unique_ptr<vmi::Viewer>> _viewers;
 	VkAllocationCallbacks _allocationCallbacks;
 	duckdb::DuckDB db;
 	duckdb::Connection dbConnection;

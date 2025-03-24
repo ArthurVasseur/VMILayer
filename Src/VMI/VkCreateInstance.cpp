@@ -7,7 +7,6 @@
 #include "VMI/VulkanFunctions.hpp"
 #include "VMI/VulkanMemoryInspector.hpp"
 
-
 VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkInstance* pInstance)
 {
 	VkResult result = VK_ERROR_INITIALIZATION_FAILED;
@@ -18,13 +17,13 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 		return result;
 	}
 
-	VkLayerInstanceCreateInfo *layerCreateInfo = (VkLayerInstanceCreateInfo *)pCreateInfo->pNext;
+	VkLayerInstanceCreateInfo* layerCreateInfo = (VkLayerInstanceCreateInfo*)pCreateInfo->pNext;
 
-	  while(layerCreateInfo && (layerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
-	                            layerCreateInfo->function != VK_LAYER_LINK_INFO))
-	  {
-	    layerCreateInfo = (VkLayerInstanceCreateInfo *)layerCreateInfo->pNext;
-	  }
+	while (layerCreateInfo && (layerCreateInfo->sType != VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO ||
+		layerCreateInfo->function != VK_LAYER_LINK_INFO))
+	{
+		layerCreateInfo = (VkLayerInstanceCreateInfo*)layerCreateInfo->pNext;
+	}
 
 	if (layerCreateInfo == nullptr)
 	{
@@ -52,7 +51,7 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 	vkuInitInstanceDispatchTable(*pInstance, &dispatchTable, getProcAddr);
 
 	VMI_CATCH_AND_RETURN(
-		VulkanMemoryInspector::GetInstance().AddInstanceDispatchTable(GEI_GET_KEY(pInstance), dispatchTable);
+		VulkanMemoryInspector::GetInstance().AddInstanceDispatchTable(GetKey(*pInstance), dispatchTable);
 	, VK_ERROR_INITIALIZATION_FAILED, vkCreateInstance(pCreateInfo, pAllocator, pInstance));
 
 	cct::Logger::Error("GEI everything ok returning ");

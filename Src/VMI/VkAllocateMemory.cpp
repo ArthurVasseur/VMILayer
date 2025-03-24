@@ -18,7 +18,7 @@ namespace
 
 VkResult vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocateInfo, const VkAllocationCallbacks* pAllocator, VkDeviceMemory* pMemory)
 {
-	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(device);
+	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(GetKey(device));
 	if (!dp)
 	{
 		CCT_ASSERT_FALSE("Could not get the device dispatch table");
@@ -53,7 +53,7 @@ VkResult vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocate
 
 void vkFreeMemory(VkDevice device, VkDeviceMemory memory, const VkAllocationCallbacks* pAllocator)
 {
-	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(device);
+	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(GetKey(device));
 	if (!dp)
 	{
 		CCT_ASSERT_FALSE("Could not get the device dispatch table");
@@ -85,7 +85,7 @@ void vkFreeMemory(VkDevice device, VkDeviceMemory memory, const VkAllocationCall
 
 VkResult vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset)
 {
-	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(device);
+	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(GetKey(device));
 	if (!dp)
 	{
 		CCT_ASSERT_FALSE("Could not get the device dispatch table");
@@ -120,7 +120,7 @@ VkResult vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory mem
 
 VkResult vkBindImageMemory(VkDevice device, VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset)
 {
-	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(device);
+	const auto* dp = VulkanMemoryInspector::GetInstance().GetDeviceDispatchTable(GetKey(device));
 	if (!dp)
 	{
 		CCT_ASSERT_FALSE("Could not get the device dispatch table");

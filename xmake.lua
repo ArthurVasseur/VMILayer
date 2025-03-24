@@ -111,40 +111,27 @@ package("duckdb")
         ]]}, {configs = {languages = "c++17"}}))
     end)
 package_end()
-
+set_policy("package.sync_requires_to_deps", true)
 add_rules("mode.debug", "mode.release")
 add_repositories("Concerto-xrepo https://github.com/ConcertoEngine/xmake-repo.git main")
 
-add_requires("vulkan-headers", "concerto-core", "mimalloc", "duckdb", "vulkan-utility-libraries")
+add_requires("libsdl3", {configs = {shared = true, debug = true, with_symbols = true}})
+add_requires("imgui", {configs = {sdl3_renderer = true, sdl3 = true} })
+add_requires("vulkan-headers", "concerto-core", "mimalloc", "duckdb", "vulkan-utility-libraries", "nlohmann_json", "implot")
 
--- VK_ADD_IMPLICIT_LAYER_PATH=C:/Users/Arthur/Documents/Git/GraphicsEngineInspector/VK_LAYER_gei.json
+-- VK_ADD_IMPLICIT_LAYER_PATH=D:/Repositories/Vulkan/VMILayer/VK_LAYER_vmi.json
 -- VK_LAYERS_ALLOW_ENV_VAR=1
--- VK_INSTANCE_LAYERS=VK_LAYER_AV_gei
--- VK_LOADER_LAYERS_ENABLE=VK_LAYER_AV_gei
--- ENABLE_GEI_LAYER=1
+-- VK_INSTANCE_LAYERS=VK_LAYER_AV_vmi
+-- VK_LOADER_LAYERS_ENABLE=VK_LAYER_AV_vmi
+-- ENABLE_VMI_LAYER=1
 -- VK_LOADER_DEBUG=all
 
 target("vmi-layer")
-    -- before_build(function(target)
-    --     import("devel.git")
-    --     local clone_path = path.join(target:targetdir(),"/Vulkan-Docs")
-
-    --     if not os.exists(clone_path) then
-    --         git.clone("git@github.com:KhronosGroup/Vulkan-Docs.git", {outputdir = clone_path})
-    --     else
-    --        -- git.pull({repodir=clone_path})
-    --     end
-    --     local out_file = path.join(target:autogendir(), "VMI")
-    --     --python.exe ./scripts/genvk.py -registry ./xml/vk.xml -o ../gen/include/vulkan vulkan_core.h
-    --     os.vrun("python.exe ./" .. path.join(clone_path, "scripts/genvk.py") .. " -registry ./" .. path.join(clone_path, "xml/vk.xml") .. " -o ./" .. out_file .. " vulkan_core.h")
-
-    --     target:add("headerfiles", path.join(target:autogendir(), out_file))
-    --     target:add("includedirs", path.join(target:autogendir(), out_file), {public = true})
-    -- end)
     set_kind("shared")
     set_languages("cxx20")
     add_files("Src/VMI/**.cpp")
     add_includedirs("Include")
     add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl", "Include/vulkan/*.c", "Include/vulkan/*.h")
-    add_packages("vulkan-headers", "concerto-core", "mimalloc", "duckdb", "vulkan-utility-libraries")
+    add_packages("imgui")
+    add_packages("vulkan-headers", "concerto-core", "mimalloc", "duckdb", "vulkan-utility-libraries", "nlohmann_json", "implot", "libsdl3")
     add_defines("VK_NO_PROTOTYPES")

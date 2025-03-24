@@ -8,39 +8,51 @@
 
 VulkanMemoryInspector VulkanMemoryInspector::instance = VulkanMemoryInspector();
 
+namespace
+{
+	cct::Int64 current_timestamp()
+	{
+		using namespace std::chrono;
+		auto now = system_clock::now();
+		auto duration = now.time_since_epoch();
+		return duration_cast<microseconds>(duration).count();
+	}
+}
 
 VulkanMemoryInspector::VulkanMemoryInspector() :
-	_allocationCallbacks({ .pUserData = nullptr,
-							.pfnAllocation = &AllocationFunction,
-							.pfnReallocation = &ReallocationFunction,
-							.pfnFree = &FreeFunction,
-							.pfnInternalAllocation = &InternalAllocationNotification,
-							.pfnInternalFree = &InternalFreeNotification }),
-	db(),
+	_allocationCallbacks({
+							 .pUserData = nullptr,
+							 .pfnAllocation = &AllocationFunction,
+							 .pfnReallocation = &ReallocationFunction,
+							 .pfnFree = &FreeFunction,
+							 .pfnInternalAllocation = &InternalAllocationNotification,
+							 .pfnInternalFree = &InternalFreeNotification
+							}),
+	db("D:/" + std::to_string(current_timestamp())),
 	dbConnection(db)
 {
 	auto queryResult = dbConnection.Query(R"(
 			-- Table for logging intercepted Vulkan events:
 			CREATE TABLE vulkan_events (
-			    id INTEGER PRIMARY KEY,
-			    timestamp TIMESTAMP NOT NULL,
-			    frame_number INTEGER NOT NULL,
-			    function_name TEXT NOT NULL,
-			    event_type TEXT,
-			    memory_delta BIGINT,
-			    parameters TEXT,
-			    result_code INTEGER,
-			    thread_id TEXT
+				id INTEGER PRIMARY KEY,
+				timestamp TIMESTAMP NOT NULL,
+				frame_number INTEGER NOT NULL,
+				function_name TEXT NOT NULL,
+				event_type TEXT,
+				memory_delta BIGINT,
+				parameters TEXT,
+				result_code INTEGER,
+				thread_id TEXT
 			);
 			CREATE SEQUENCE seq_vulkan_event_id START 1;
 
 			-- Table for periodic memory usage snapshots:
 			CREATE TABLE memory_usage (
-			    id INTEGER PRIMARY KEY,
-			    timestamp TIMESTAMP NOT NULL,
-			    total_allocated BIGINT,
-			    allocation_count INTEGER,
-			    deallocation_count INTEGER
+				id INTEGER PRIMARY KEY,
+				timestamp TIMESTAMP NOT NULL,
+				total_allocated BIGINT,
+				allocation_count INTEGER,
+				deallocation_count INTEGER
 			);
 			CREATE SEQUENCE seq_memory_usage_id START 1;
 	)");
