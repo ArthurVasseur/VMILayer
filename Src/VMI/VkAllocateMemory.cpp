@@ -110,11 +110,11 @@ VkResult vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory mem
 	std::stringstream threadId;
 	threadId << std::this_thread::get_id();
 
-	auto queryResult = stmt->Execute(timestamp, frame_number, "vkBindBufferMemory", "binding", mem_delta, json_params, static_cast<cct::Int64>(result), threadId.str());
-	if (queryResult && queryResult->HasError())
-	{
-		CCT_ASSERT_FALSE("Query failed with error: '{}'", queryResult->GetError());
-	}
+	//auto queryResult = stmt->Execute(timestamp, frame_number, "vkBindBufferMemory", "binding", mem_delta, json_params, static_cast<cct::Int64>(result), threadId.str());
+	//if (queryResult && queryResult->HasError())
+	//{
+	//	CCT_ASSERT_FALSE("Query failed with error: '{}'", queryResult->GetError());
+	//}
 	return result;
 }
 
@@ -144,10 +144,10 @@ VkResult vkBindImageMemory(VkDevice device, VkImage image, VkDeviceMemory memory
 	std::stringstream threadId;
 	threadId << std::this_thread::get_id();
 
-	auto queryResult = stmt->Execute(timestamp, frame_number, "vkBindImageMemory", "binding", mem_delta, json_params, static_cast<cct::Int64>(result), threadId.str());
-	if (queryResult && queryResult->HasError())
-	{
-		CCT_ASSERT_FALSE("Query failed with error: '{}'", queryResult->GetError());
-	}
+	//auto queryResult = stmt->Execute(timestamp, frame_number, "vkBindImageMemory", "binding", mem_delta, json_params, static_cast<cct::Int64>(result), threadId.str());
+	//if (queryResult && queryResult->HasError())
+	//{
+	//	CCT_ASSERT_FALSE("Query failed with error: '{}'", queryResult->GetError());
+	//}
 	return result;
 }

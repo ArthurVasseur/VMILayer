@@ -8,6 +8,7 @@
 #include <duckdb.hpp>
 #include <SDL3/SDL.h>
 #include <Concerto/Core/Result.hpp>
+#include <Concerto/Core/Types.hpp>
 
 namespace vmi
 {
@@ -23,6 +24,7 @@ namespace vmi
 		SDL_Renderer* _renderer;
 		duckdb::Connection _db;
 		bool _shouldQuit;
+		cct::Int64 _startedAt;
 	};
 }
 

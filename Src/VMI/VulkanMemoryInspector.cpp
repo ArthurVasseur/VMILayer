@@ -8,17 +8,6 @@
 
 VulkanMemoryInspector VulkanMemoryInspector::instance = VulkanMemoryInspector();
 
-namespace
-{
-	cct::Int64 current_timestamp()
-	{
-		using namespace std::chrono;
-		auto now = system_clock::now();
-		auto duration = now.time_since_epoch();
-		return duration_cast<microseconds>(duration).count();
-	}
-}
-
 VulkanMemoryInspector::VulkanMemoryInspector() :
 	_allocationCallbacks({
 							 .pUserData = nullptr,
@@ -28,7 +17,7 @@ VulkanMemoryInspector::VulkanMemoryInspector() :
 							 .pfnInternalAllocation = &InternalAllocationNotification,
 							 .pfnInternalFree = &InternalFreeNotification
 							}),
-	db("D:/" + std::to_string(current_timestamp())),
+	db("D:/" + std::to_string(GetCurrentTimeStamp())),
 	dbConnection(db)
 {
 	auto queryResult = dbConnection.Query(R"(

@@ -5,6 +5,7 @@
 #ifndef GEI_VULKANFUNCTION_HPP
 #define GEI_VULKANFUNCTION_HPP
 
+#include <chrono>
 #include <memory>
 
 #include "VMI/Defines.hpp"
@@ -49,6 +50,15 @@ void* GetKey(DispatchableType inst)
 {
 	return *(void**)inst;
 }
+
+static cct::Int64 GetCurrentTimeStamp()
+{
+	using namespace std::chrono;
+	auto now = system_clock::now();
+	auto duration = now.time_since_epoch();
+	return duration_cast<microseconds>(duration).count();
+}
+
 
 
 VMI_EXPORT PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance, const char* pName);

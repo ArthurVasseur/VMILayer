@@ -8,13 +8,18 @@
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlrenderer3.h>
+#include <implot.h>
+
+#include "VMI/VulkanFunctions.hpp"
 
 namespace vmi
 {
 	Viewer::Viewer(duckdb::Connection db) :
 		_window(nullptr),
+		_renderer(nullptr),
 		_db(std::move(db)),
-		_shouldQuit(false)
+		_shouldQuit(false),
+		_startedAt(GetCurrentTimeStamp())
 	{
 	}
 
@@ -22,6 +27,7 @@ namespace vmi
 	{
 		ImGui_ImplSDLRenderer3_Shutdown();
 		ImGui_ImplSDL3_Shutdown();
+		ImPlot::DestroyContext();
 		ImGui::DestroyContext();
 
 		SDL_DestroyRenderer(_renderer);
@@ -66,6 +72,7 @@ namespace vmi
 
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
+		ImPlot::CreateContext();
 		ImGuiIO& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -96,31 +103,59 @@ namespace vmi
 
 		ImGui_ImplSDLRenderer3_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
+		std::vector<cct::Int32> timestamps;
+		std::vector<cct::Int32> memoryUsed;
+
+		// Run the SQL query.
+		auto result = _db.Query("SELECT timestamp, memory_delta FROM vulkan_events ORDER BY timestamp ASC;");
+		if (result->HasError())
+		{
+			std::cerr << "Query failed: " << result->GetError() << '\n';
+			return;
+		}
+
+		std::unique_ptr<duckdb::DataChunk> chunk = result->Fetch();
+		if (chunk)
+		{
+			for (size_t i = 0; i < chunk->size(); i++)
+			{
+				auto ts = chunk->GetValue(0, i).GetValue<duckdb::timestamp_t>();
+				auto mem = chunk->GetValue(1, i).GetValue<cct::Int64>();
+				timestamps.push_back((ts.value - _startedAt) / 1000);
+				memoryUsed.push_back(mem / 8 / 1024);
+			}
+		}
+
 		ImGui::NewFrame();
 		{
-			static float f = 0.0f;
-			static int counter = 0;
-
-			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-
-			ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-			ImGui::ColorEdit3("clear color", reinterpret_cast<float*>(&clear_color)); // Edit 3 floats representing a color
-
-			if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-				counter++;
-			ImGui::SameLine();
-			ImGui::Text("counter = %d", counter);
-
+			ImGui::Begin("Hello, world!");
 			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-			ImGui::End();
+			if (!timestamps.empty() && ImPlot::BeginPlot("Real-time Memory Consumption"))
+			{
+				ImPlot::SetupAxes("Time (s)", "Memory Used (bytes)");
+				if (!timestamps.empty() && timestamps.size() == memoryUsed.size())
+				{
+					// PlotShaded fills the area between the curve and the baseline (here, y = 0).
+					//ImPlot::PlotShaded("Memory Used",
+					//	timestamps.data(),
+					//	memoryUsed.data(),
+					//	static_cast<int>(timestamps.size()),
+					//	0,       // offset (starting index)
+					//	0.0,     // baseline y_ref
+					//	ImPlotShadedFlags_None);
+					ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+					ImPlot::PlotShaded("Memory Used", timestamps.data(), memoryUsed.data(), memoryUsed.size(), 0, 0, 0);
+					ImPlot::PopStyleVar();
+					ImPlot::EndPlot();
+				}
+				ImGui::End();
+			}
+			ImGui::Render();
+			//SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+			SDL_SetRenderDrawColorFloat(_renderer, clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+			SDL_RenderClear(_renderer);
+			ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), _renderer);
+			SDL_RenderPresent(_renderer);
 		}
-		ImGui::Render();
-		//SDL_RenderSetScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-		SDL_SetRenderDrawColorFloat(_renderer, clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-		SDL_RenderClear(_renderer);
-		ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), _renderer);
-		SDL_RenderPresent(_renderer);
 	}
 }
