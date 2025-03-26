@@ -1,0 +1,38 @@
+{
+    "tables": [
+      {
+        "name": "vulkan_events",
+        "columns": [
+          {"name": "id", "type": "i32", "primary_key": true, "autoincrement": true},
+          {"name": "timestamp", "type": "str", "not_null": true},
+          {"name": "frame_number", "type": "i32", "not_null": true},
+          {"name": "function_name", "type": "str", "not_null": true},
+          {"name": "event_type", "type": "str"},
+          {"name": "memory_delta", "type": "i64"},
+          {"name": "parameters", "type": "str"},
+          {"name": "result_code", "type": "i32"},
+          {"name": "thread_id", "type": "str"}
+        ]
+      },
+      {
+        "name": "frame_information",
+        "columns": [
+          {"name": "frame_index", "type": "i32", "primary_key": true},
+          {"name": "started_at", "type": "str", "not_null": true}
+        ]
+      },
+      {
+        "name": "memory_usage",
+        "columns": [
+          {"name": "id", "type": "i32", "primary_key": true, "autoincrement": true},
+          {"name": "device_memory", "type": "i64"},
+          {"name": "frame_index_allocated", "type": "i32", "not_null": true},
+          {"name": "allocated_at", "type": "str", "not_null": true},
+          {"name": "allocation_size", "type": "i64"},
+          {"name": "frame_index_deallocated", "type": "i32"},
+          {"name": "deallocated_at", "type": "str"}
+        ]
+      }
+    ]
+  }
+  

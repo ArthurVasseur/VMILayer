@@ -1,3 +1,32 @@
 build
 vsxmake2022
 .xmake
+.vscode
+vmi-app/.vscode
+vmi-app/.node_modules
+
+
+# Logs
+vmi-app/logs
+vmi-app/*.log
+vmi-app/npm-debug.log*
+vmi-app/yarn-debug.log*
+vmi-app/yarn-error.log*
+vmi-app/pnpm-debug.log*
+vmi-app/lerna-debug.log*
+
+vmi-app/node_modules
+vmi-app/dist
+vmi-app/dist-ssr
+vmi-app/*.local
+
+# Editor directories and files
+vmi-app/.vscode/*
+vmi-app/!.vscode/extensions.json
+vmi-app/.idea
+vmi-app/.DS_Store
+vmi-app/*.suo
+vmi-app/*.ntvs*
+vmi-app/*.njsproj
+vmi-app/*.sln
+vmi-app/*.sw?
