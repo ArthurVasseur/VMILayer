@@ -7,22 +7,11 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use zmq;
 use serde::Deserialize;
-
-#[derive(Debug, Deserialize)]
-struct VulkanEvent {
-    timestamp: String,
-    frame_number: i64,
-    function_name: String,
-    event_type: Option<String>,
-    memory_delta: Option<i64>,
-    parameters: Option<String>,
-    result_code: Option<i32>,
-    thread_id: Option<String>,
-}
+mod bindings;
 
 fn init_database(pool: &Pool<SqliteConnectionManager>) {
     let conn = pool.get().expect("Could not get a connection from the pool");
-    conn.execute_batch(app_lib::DATABASE_SCHEMA).expect("Failed to create database schema");
+    conn.execute_batch(bindings::DATABASE_SCHEMA).expect("Failed to create database schema");
 }
 
 fn main() {
@@ -37,7 +26,7 @@ fn main() {
     init_database(&pool);
     println!("Database initialized at {}", database_path.display());
 
-    let (tx, rx) = mpsc::channel::<VulkanEvent>();
+    let (tx, rx) = mpsc::channel::<bindings::VulkanEvent>();
 
     let zmq_tx = tx.clone();
     thread::spawn(move || {
@@ -57,8 +46,7 @@ fn main() {
             let msg_str = msg.as_str().unwrap_or("");
             println!("Message reçu: {}", msg_str);
 
-            // Supposons que le message est un JSON représentant un VulkanEvent
-            let event: VulkanEvent = match serde_json::from_str(msg_str) {
+            let event: bindings::VulkanEvent = match serde_json::from_str(msg_str) {
                 Ok(ev) => ev,
                 Err(e) => {
                     eprintln!("Erreur de parsing JSON: {}", e);
@@ -70,14 +58,13 @@ fn main() {
                 eprintln!("Erreur lors de l'envoi de l'événement: {}", e);
             }
 
-            // Envoi d'une réponse au client ZMQ
             socket.send("Accusé de réception", 0).expect("Échec de l'envoi de la réponse ZMQ");
         }
     });
 
     let pool_clone = pool.clone();
     thread::spawn(move || {
-        let mut buffer: Vec<VulkanEvent> = Vec::new();
+        let mut buffer: Vec<bindings::VulkanEvent> = Vec::new();
 
         loop {
             while let Ok(event) = rx.recv_timeout(Duration::from_millis(100)) {

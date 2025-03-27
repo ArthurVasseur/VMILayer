@@ -1,7 +1,5 @@
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
 use std::collections::HashMap;
-use std::io;
+use std::{fs, io};
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -34,9 +32,14 @@ fn launch_application(file_path: String, working_directory: String, command_args
         .collect::<Vec<String>>();
 
     let mut env = HashMap::new();
+    let layer_path = PathBuf::from("../vmi-layer/VK_LAYER_vmi.json");
+    let layer_full_path = fs::canonicalize(&layer_path).unwrap_or_else(|_| {
+        panic!("Failed to get the full path of the layer file: {:?}", layer_path)
+    });
+
     env.insert(
         "VK_ADD_IMPLICIT_LAYER_PATH".into(),
-        "D:/Repositories/Vulkan/VMILayer/VK_LAYER_vmi.json".into(),
+        layer_full_path.to_str().unwrap_or("").into(),
     );
     env.insert("VK_LAYERS_ALLOW_ENV_VAR".into(), "1".into());
     env.insert("VK_INSTANCE_LAYERS".into(), "VK_LAYER_AV_vmi".into());

@@ -115,7 +115,7 @@ set_policy("package.sync_requires_to_deps", true)
 add_rules("mode.debug", "mode.release")
 add_repositories("Concerto-xrepo https://github.com/ConcertoEngine/xmake-repo.git main")
 
-add_requires("vulkan-headers", "concerto-core", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "cppzmq")
+add_requires("vulkan-headers", "concerto-core", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "cppzmq", "python 3.x")
 
 -- VK_ADD_IMPLICIT_LAYER_PATH=D:/Repositories/Vulkan/VMILayer/VK_LAYER_vmi.json
 -- VK_LAYERS_ALLOW_ENV_VAR=1
@@ -129,9 +129,20 @@ target("vmi-layer")
     set_languages("cxx20")
     add_files("Src/VMI/**.cpp")
     add_includedirs("Include")
-    add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl", "Include/vulkan/*.c", "Include/vulkan/*.h")
+    add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl")
     add_packages("vulkan-headers", "concerto-core", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "cppzmq")
     add_defines("VK_NO_PROTOTYPES")
+
+    on_config(function(target)
+        local out_folder = target:autogendir()
+        local out_file = path.join(out_folder, "VMI", "Bindings.hpp")
+        local header_file = target:autogendir() .. "/(VMI/*.hpp)"
+        os.execv("python.exe", { "../generate_bindings.py", "cpp", out_file, "../schema.json" })
+
+        target:add("headerfiles", header_file)
+        target:add("includedirs", out_folder, {public = true})
+    end)
+
     after_build(function(target)
         local lib_path = path.absolute(target:targetfile())
         local json_content = string.format([[

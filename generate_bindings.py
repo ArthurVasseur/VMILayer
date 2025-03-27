@@ -25,55 +25,51 @@ def generate_cpp_binding(table: dict) -> str:
         field_name = snake_to_field(col["name"])
         code.append(f"\t{cpp_type} {field_name};")
     code.append("")
-    code.append("\tstd::vector<uint8_t> serialize() const {")
+    code.append("\tstd::vector<cct::Byte> serialize() const {")
     code.append("\t\tsize_t total_size = 0;")
     for col in table["columns"]:
         field_name = snake_to_field(col["name"])
         if col["type"] == "str":
-            code.append(f"\t\ttotal_size += sizeof(uint32_t) + {field_name}.size();")
+            code.append(f"\t\ttotal_size += sizeof(cct::UInt32) + {field_name}.size();")
         else:
             cpp_type = type_mapping[col["type"]]["cpp"]
             code.append(f"\t\ttotal_size += sizeof({cpp_type});")
-    code.append("\t\tstd::vector<uint8_t> buffer(total_size);")
+    code.append("\t\tstd::vector<cct::Byte> buffer(total_size);")
     code.append("\t\tsize_t offset = 0;")
     for col in table["columns"]:
         cpp_type = type_mapping[col["type"]]["cpp"]
         field_name = snake_to_field(col["name"])
         if col["type"] == "str":
-            code.append(f'\t\t// Sérialisation de {field_name} (string)')
-            code.append(f'\t\tuint32_t len_{field_name} = static_cast<uint32_t>({field_name}.size());')
-            code.append(f'\t\tlen_{field_name} = Concerto::ByteSwap::Swap(len_{field_name});')
-            code.append(f'\t\tstd::memcpy(buffer.data() + offset, &len_{field_name}, sizeof(uint32_t));')
-            code.append(f'\t\toffset += sizeof(uint32_t);')
+            code.append(f'\t\tcct::UInt32 len_{field_name} = static_cast<cct::UInt32>({field_name}.size());')
+            code.append(f'\t\tlen_{field_name} = cct::ByteSwap(len_{field_name});')
+            code.append(f'\t\tstd::memcpy(buffer.data() + offset, &len_{field_name}, sizeof(cct::UInt32));')
+            code.append(f'\t\toffset += sizeof(cct::UInt32);')
             code.append(f'\t\tstd::memcpy(buffer.data() + offset, {field_name}.data(), {field_name}.size());')
             code.append(f'\t\toffset += {field_name}.size();')
         else:
-            code.append(f'\t\t// Sérialisation de {field_name} (numeric)')
-            code.append(f'\t\t{cpp_type} temp_{field_name} = Concerto::ByteSwap::Swap({field_name});')
+            code.append(f'\t\t{cpp_type} temp_{field_name} = cct::ByteSwap({field_name});')
             code.append(f'\t\tstd::memcpy(buffer.data() + offset, &temp_{field_name}, sizeof({cpp_type}));')
             code.append(f'\t\toffset += sizeof({cpp_type});')
     code.append("\t\treturn buffer;")
     code.append("\t}")
     code.append("")
-    code.append(f'\tstatic {class_name} deserialize(const std::vector<uint8_t>& buffer) {{')
+    code.append(f'\tstatic {class_name} deserialize(std::span<const cct::Byte> buffer) {{')
     code.append(f'\t\t{class_name} obj;')
     code.append("\t\tsize_t offset = 0;")
     for col in table["columns"]:
         cpp_type = type_mapping[col["type"]]["cpp"]
         field_name = snake_to_field(col["name"])
         if col["type"] == "str":
-            code.append(f'\t\t// Désérialisation de {field_name} (string)')
-            code.append(f'\t\tuint32_t len_{field_name};')
-            code.append(f'\t\tstd::memcpy(&len_{field_name}, buffer.data() + offset, sizeof(uint32_t));')
-            code.append(f'\t\tlen_{field_name} = cct::ByteSwap::Swap(len_{field_name});')
-            code.append(f'\t\toffset += sizeof(uint32_t);')
+            code.append(f'\t\tcct::UInt32 len_{field_name};')
+            code.append(f'\t\tstd::memcpy(&len_{field_name}, buffer.data() + offset, sizeof(cct::UInt32));')
+            code.append(f'\t\tlen_{field_name} = cct::ByteSwap(len_{field_name});')
+            code.append(f'\t\toffset += sizeof(cct::UInt32);')
             code.append(f'\t\tobj.{field_name}.assign(reinterpret_cast<const char*>(buffer.data() + offset), len_{field_name});')
             code.append(f'\t\toffset += len_{field_name};')
         else:
-            code.append(f'\t\t// Désérialisation de {field_name} (numeric)')
             code.append(f'\t\t{cpp_type} temp_{field_name};')
             code.append(f'\t\tstd::memcpy(&temp_{field_name}, buffer.data() + offset, sizeof({cpp_type}));')
-            code.append(f'\t\tobj.{field_name} = cct::ByteSwap::Swap(temp_{field_name});')
+            code.append(f'\t\tobj.{field_name} = cct::ByteSwap(temp_{field_name});')
             code.append(f'\t\toffset += sizeof({cpp_type});')
     code.append("\t\treturn obj;")
     code.append("\t}")
@@ -83,7 +79,7 @@ def generate_cpp_binding(table: dict) -> str:
 def generate_rust_binding(table: dict) -> str:
     struct_name = snake_to_camel(table["name"])
     lines = []
-    lines.append("#[derive(Debug)]")
+    lines.append("#[derive(Debug, Serialize, Deserialize)]")
     lines.append(f"pub struct {struct_name} {{")
     for col in table["columns"]:
         rust_type = type_mapping[col["type"]]["rust"]
@@ -155,22 +151,73 @@ def generate_sql_schema(table: dict) -> str:
     return "\n".join(lines)
 
 def write_to_file(filename: str, content: str):
+    output_dir = os.path.dirname(filename)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
 
 def generate_cpp_file(json_data: dict) -> str:
     header = (
+        "/// This file is generated by generate_bindings.py\n"
+        "/// Do not edit manually\n"
+        "#pragma once\n"
         "#include <cstdint>\n"
         "#include <vector>\n"
         "#include <string>\n"
         "#include <cstring>\n"
+        "#include <variant>\n"
+        "#include <span>\n"
         "#include <Concerto/Core/ByteSwap.hpp>\n\n"
     )
     classes = []
+    classes.append(f"enum class EventType {{")
+    for i, value in enumerate(json_data["tables"]):
+        classes.append(f"\t{snake_to_camel(value['name'])} = {i},")
+    classes.append("};")
+    classes.append("\n")
+
+    
     for table in json_data["tables"]:
         classes.append(generate_cpp_binding(table))
         classes.append("\n")
-    return header + "\n".join(classes)
+    
+    code = "inline std::variant<std::monostate, "
+    for klass in json_data["tables"]:
+        code += f"{snake_to_camel(klass['name'])}, "
+    code = code[:-2] + "> Deserialize(const std::vector<cct::Byte>& data) {\n"
+    code += "\tdecltype(Deserialize(data)) res;\n"
+    code += "\tif (data.size() < sizeof(cct::UInt32)) return res;\n"
+    code += "\tcct::UInt32 type;\n"
+    code += "\tstd::memcpy(&type, data.data(), sizeof(cct::UInt32));\n"
+    code += "\ttype = cct::ByteSwap(type);\n"
+    code += "\tswitch (type) {\n"
+    for i, table in enumerate(json_data["tables"]):
+        code += f"\t\tcase {i}:\n"
+        code += f"\t\t\tres = {snake_to_camel(table['name'])}::deserialize(std::span<const cct::Byte>(data.data() + sizeof(cct::UInt32), data.size() - sizeof(cct::UInt32)));\n"
+        code += "\t\t\tbreak;\n"
+    code += "\t\tdefault:\n"
+    code += "\t\t\tbreak;\n"
+    code += "\t}\n"
+    code += "\treturn res;\n"
+    code += "}\n\n"
+
+    code += "template<typename T>\n"
+    code += "inline std::vector<cct::Byte> Serialize(const T& obj) {\n"
+    code += "\tstd::vector<cct::Byte> buffer;\n"
+    code += "\tbuffer.reserve(sizeof(cct::UInt32));\n"
+    for table in json_data["tables"]:
+        code += f"\tif constexpr (std::is_same_v<T, {snake_to_camel(table['name'])}>) {{\n"
+        code += f"\t\tcct::UInt32 type = static_cast<cct::UInt32>(EventType::{snake_to_camel(table['name'])});\n"
+        code += "\t\ttype = cct::ByteSwap(type);\n"
+        code += "\t\tstd::memcpy(buffer.data(), &type, sizeof(cct::UInt32));\n"
+        code += "\t\tauto serializedType = obj.serialize();\n"
+        code += "\t\tbuffer.insert(buffer.end(), serializedType.begin(), serializedType.end());\n"
+        code += "\t\treturn buffer;\n"
+        code += "\t}\n"
+    code += "\treturn buffer;\n"
+    code += "}\n\n"
+    return header + "\n".join(classes) + "\n" + code
 
 def generate_rust_file(json_data: dict) -> str:
     modules = []
