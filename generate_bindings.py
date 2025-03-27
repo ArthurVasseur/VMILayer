@@ -206,13 +206,26 @@ def generate_sql_file(json_data: dict) -> str:
     return "\n".join(statements)
 
 def main():
-    cpp_content = generate_cpp_file(json_data)
-    rust_content = generate_rust_file(json_data)
-    sql_content = generate_sql_file(json_data)
-
-    write_to_file("bindings_cpp.cpp", cpp_content)
-    write_to_file("bindings_rust.rs", rust_content)
-    write_to_file("schema.sql", sql_content)
+    args = os.sys.argv
+    if len(args) != 3:
+        print("Usage: python generate_bindings.py lang output_file")
+        return
+    
+    lang = args[1]
+    output_file = args[2]
+    if lang not in ["cpp", "rust", "sql"]:
+        print("Invalid language")
+        return
+    
+    if lang == "cpp":
+        content = generate_cpp_file(json_data)
+        write_to_file(output_file, content)
+    elif lang == "rust":
+        content = generate_rust_file(json_data)
+        write_to_file(output_file, content)
+    else:
+        content = generate_sql_file(json_data)
+        write_to_file(output_file, content)
 
 if __name__ == "__main__":
     main()
