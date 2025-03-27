@@ -1,8 +1,8 @@
 [package]
-name = "app"
+name = "VMI"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Vulkan Memory Inspector"
+authors = ["Arthur Vasseur"]
 license = ""
 repository = ""
 edition = "2021"
