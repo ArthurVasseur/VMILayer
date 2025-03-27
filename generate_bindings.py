@@ -2,42 +2,31 @@
 import json
 import os
 
-# Chargement des données JSON depuis le fichier "schema.json"
-with open("schema.json", "r", encoding="utf-8") as f:
-    json_data = json.load(f)
-
-# Table de correspondance entre les types JSON et les types dans chaque langage
 type_mapping = {
-    "i32": {"cpp": "int32_t", "rust": "i32", "sql": "INTEGER"},
-    "i64": {"cpp": "int64_t", "rust": "i64", "sql": "BIGINT"},
+    "i32": {"cpp": "cct::Int32", "rust": "i32", "sql": "INTEGER"},
+    "i64": {"cpp": "cct::Int64", "rust": "i64", "sql": "BIGINT"},
     "str": {"cpp": "std::string", "rust": "String", "sql": "TEXT"}
 }
 
-# Conversion d'un nom en snake_case vers CamelCase (pour le nom de classe en C++)
 def snake_to_camel(name: str) -> str:
     return "".join(word.capitalize() for word in name.split('_'))
 
-# Pour les membres de C++ on transforme le snake_case en camelCase (première lettre en minuscule)
 def snake_to_field(name: str) -> str:
     parts = name.split('_')
     return parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
 
-# Génération du binding C++ avec implémentation complète
 def generate_cpp_binding(table: dict) -> str:
     class_name = snake_to_camel(table["name"])
     code = []
     code.append(f"class {class_name} {{")
     code.append("public:")
-    # Déclaration des membres
     for col in table["columns"]:
         cpp_type = type_mapping[col["type"]]["cpp"]
         field_name = snake_to_field(col["name"])
         code.append(f"\t{cpp_type} {field_name};")
     code.append("")
-    # Fonction serialize()
     code.append("\tstd::vector<uint8_t> serialize() const {")
     code.append("\t\tsize_t total_size = 0;")
-    # Calcul de la taille totale
     for col in table["columns"]:
         field_name = snake_to_field(col["name"])
         if col["type"] == "str":
@@ -47,7 +36,6 @@ def generate_cpp_binding(table: dict) -> str:
             code.append(f"\t\ttotal_size += sizeof({cpp_type});")
     code.append("\t\tstd::vector<uint8_t> buffer(total_size);")
     code.append("\t\tsize_t offset = 0;")
-    # Sérialisation de chaque champ
     for col in table["columns"]:
         cpp_type = type_mapping[col["type"]]["cpp"]
         field_name = snake_to_field(col["name"])
@@ -67,7 +55,6 @@ def generate_cpp_binding(table: dict) -> str:
     code.append("\t\treturn buffer;")
     code.append("\t}")
     code.append("")
-    # Fonction deserialize()
     code.append(f'\tstatic {class_name} deserialize(const std::vector<uint8_t>& buffer) {{')
     code.append(f'\t\t{class_name} obj;')
     code.append("\t\tsize_t offset = 0;")
@@ -78,7 +65,7 @@ def generate_cpp_binding(table: dict) -> str:
             code.append(f'\t\t// Désérialisation de {field_name} (string)')
             code.append(f'\t\tuint32_t len_{field_name};')
             code.append(f'\t\tstd::memcpy(&len_{field_name}, buffer.data() + offset, sizeof(uint32_t));')
-            code.append(f'\t\tlen_{field_name} = Concerto::ByteSwap::Swap(len_{field_name});')
+            code.append(f'\t\tlen_{field_name} = cct::ByteSwap::Swap(len_{field_name});')
             code.append(f'\t\toffset += sizeof(uint32_t);')
             code.append(f'\t\tobj.{field_name}.assign(reinterpret_cast<const char*>(buffer.data() + offset), len_{field_name});')
             code.append(f'\t\toffset += len_{field_name};')
@@ -86,14 +73,13 @@ def generate_cpp_binding(table: dict) -> str:
             code.append(f'\t\t// Désérialisation de {field_name} (numeric)')
             code.append(f'\t\t{cpp_type} temp_{field_name};')
             code.append(f'\t\tstd::memcpy(&temp_{field_name}, buffer.data() + offset, sizeof({cpp_type}));')
-            code.append(f'\t\tobj.{field_name} = Concerto::ByteSwap::Swap(temp_{field_name});')
+            code.append(f'\t\tobj.{field_name} = cct::ByteSwap::Swap(temp_{field_name});')
             code.append(f'\t\toffset += sizeof({cpp_type});')
     code.append("\t\treturn obj;")
     code.append("\t}")
     code.append("};")
     return "\n".join(code)
 
-# Génération du binding Rust (version simplifiée)
 def generate_rust_binding(table: dict) -> str:
     struct_name = snake_to_camel(table["name"])
     lines = []
@@ -149,7 +135,6 @@ def generate_rust_binding(table: dict) -> str:
     lines.append("}")
     return "\n".join(lines)
 
-# Génération du schéma SQL
 def generate_sql_schema(table: dict) -> str:
     lines = []
     table_name = table["name"]
@@ -169,19 +154,17 @@ def generate_sql_schema(table: dict) -> str:
     lines.append(");")
     return "\n".join(lines)
 
-# Fonction pour écrire dans un fichier
 def write_to_file(filename: str, content: str):
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
 
-# Génération du fichier C++ complet
 def generate_cpp_file(json_data: dict) -> str:
     header = (
         "#include <cstdint>\n"
         "#include <vector>\n"
         "#include <string>\n"
         "#include <cstring>\n"
-        "#include \"Concerto/Core/ByteSwap.hpp\"\n\n"
+        "#include <Concerto/Core/ByteSwap.hpp>\n\n"
     )
     classes = []
     for table in json_data["tables"]:
@@ -189,7 +172,6 @@ def generate_cpp_file(json_data: dict) -> str:
         classes.append("\n")
     return header + "\n".join(classes)
 
-# Génération du fichier Rust
 def generate_rust_file(json_data: dict) -> str:
     modules = []
     for table in json_data["tables"]:
@@ -197,35 +179,35 @@ def generate_rust_file(json_data: dict) -> str:
         modules.append("\n")
     return "\n".join(modules)
 
-# Génération du fichier SQL
 def generate_sql_file(json_data: dict) -> str:
-    statements = []
+    code = "pub const DATABASE_SCHEMA: &str = r###\""
     for table in json_data["tables"]:
-        statements.append(generate_sql_schema(table))
-        statements.append("\n")
-    return "\n".join(statements)
+        code += generate_sql_schema(table)
+        code += "\n"
+    code += "\"###;\n\n"
+    return code
 
 def main():
     args = os.sys.argv
-    if len(args) != 3:
-        print("Usage: python generate_bindings.py lang output_file")
+    if len(args) != 4:
+        print("Usage: python generate_bindings.py lang output_file json_file")
         return
-    
+
     lang = args[1]
     output_file = args[2]
-    if lang not in ["cpp", "rust", "sql"]:
+    json_file = args[3]
+    if lang not in ["cpp", "rust"]:
         print("Invalid language")
         return
-    
-    if lang == "cpp":
-        content = generate_cpp_file(json_data)
-        write_to_file(output_file, content)
-    elif lang == "rust":
-        content = generate_rust_file(json_data)
-        write_to_file(output_file, content)
-    else:
-        content = generate_sql_file(json_data)
-        write_to_file(output_file, content)
+
+    with open(json_file, "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+        if lang == "cpp":
+            content = generate_cpp_file(json_data)
+            write_to_file(output_file, content)
+        elif lang == "rust":
+            content = generate_sql_file(json_data) + generate_rust_file(json_data)
+            write_to_file(output_file, content)
 
 if __name__ == "__main__":
     main()

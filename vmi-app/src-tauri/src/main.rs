@@ -1,13 +1,12 @@
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use chrono::DateTime;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
 use zmq;
 use serde::Deserialize;
-
-mod database_schema;
 
 #[derive(Debug, Deserialize)]
 struct VulkanEvent {
@@ -23,14 +22,20 @@ struct VulkanEvent {
 
 fn init_database(pool: &Pool<SqliteConnectionManager>) {
     let conn = pool.get().expect("Could not get a connection from the pool");
-    conn.execute_batch(database_schema::DATABASE_SCHEMA).expect("Failed to create database schema");
+    conn.execute_batch(app_lib::DATABASE_SCHEMA).expect("Failed to create database schema");
 }
 
 fn main() {
-    let manager = SqliteConnectionManager::file("vulkan_events.db");
+    let now: DateTime<chrono::Utc> = chrono::Utc::now();
+    let database_name = format!("{}.vmi", now.format("%Y-%m-%d_%H-%M-%S-%3f"));
+    let vmi_temp_dir = std::env::temp_dir().join("VulkanMemoryInspector");
+    std::fs::create_dir_all(&vmi_temp_dir).expect("Could not create directory");
+    let database_path  = vmi_temp_dir.join(database_name);
+    let manager = SqliteConnectionManager::file(&database_path);
     let pool = Pool::new(manager).expect("Could not create a connection pool");
 
     init_database(&pool);
+    println!("Database initialized at {}", database_path.display());
 
     let (tx, rx) = mpsc::channel::<VulkanEvent>();
 
@@ -38,7 +43,7 @@ fn main() {
     thread::spawn(move || {
         let context = zmq::Context::new();
         let socket = context.socket(zmq::REP).expect("Impossible de créer le socket ZMQ");
-        socket.bind("tcp://*:4190").expect("Échec du bind du socket ZMQ");
+        socket.bind("tcp://*:2104").expect("Échec du bind du socket ZMQ");
 
         loop {
             let msg = match socket.recv_msg(0) {
