@@ -6,7 +6,7 @@
 
 #include "VMI/VulkanMemoryInspector.hpp"
 
-VulkanMemoryInspector VulkanMemoryInspector::instance = VulkanMemoryInspector();
+std::shared_ptr<VulkanMemoryInspector> VulkanMemoryInspector::instance = nullptr;
 
 VulkanMemoryInspector::VulkanMemoryInspector() :
 	_allocationCallbacks({
@@ -16,9 +16,18 @@ VulkanMemoryInspector::VulkanMemoryInspector() :
 							 .pfnFree = &FreeFunction,
 							 .pfnInternalAllocation = &InternalAllocationNotification,
 							 .pfnInternalFree = &InternalFreeNotification
-							})
+							}),
+	_frameIndex(0)
 {
+	using namespace std::string_view_literals;
+	_socket = std::make_unique<cct::net::Socket>(cct::net::SocketType::Tcp, cct::net::IpProtocol::Ipv4);
+	_socket->Connect(cct::net::IpAddress("127.0.0.1"sv, 2104));
+}
 
+VulkanMemoryInspector::~VulkanMemoryInspector()
+{
+	_socket->Close();
+	_socket = nullptr;
 }
 
 void* VulkanMemoryInspector::AllocationFunction(void* pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)

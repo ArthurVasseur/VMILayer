@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import sys
 
 type_mapping = {
     "i32": {"cpp": "cct::Int32", "rust": "i32", "sql": "INTEGER"},
@@ -15,121 +16,177 @@ def snake_to_field(name: str) -> str:
     parts = name.split('_')
     return parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
 
-def generate_cpp_binding(table: dict) -> str:
-    class_name = snake_to_camel(table["name"])
-    code = []
-    code.append(f"class {class_name} {{")
-    code.append("public:")
-    for col in table["columns"]:
-        cpp_type = type_mapping[col["type"]]["cpp"]
-        field_name = snake_to_field(col["name"])
-        code.append(f"\t{cpp_type} {field_name};")
-    code.append("")
-    code.append("\tstd::vector<cct::Byte> serialize() const {")
-    code.append("\t\tsize_t total_size = 0;")
-    for col in table["columns"]:
-        field_name = snake_to_field(col["name"])
-        if col["type"] == "str":
-            code.append(f"\t\ttotal_size += sizeof(cct::UInt32) + {field_name}.size();")
-        else:
-            cpp_type = type_mapping[col["type"]]["cpp"]
-            code.append(f"\t\ttotal_size += sizeof({cpp_type});")
-    code.append("\t\tstd::vector<cct::Byte> buffer(total_size);")
-    code.append("\t\tsize_t offset = 0;")
-    for col in table["columns"]:
-        cpp_type = type_mapping[col["type"]]["cpp"]
-        field_name = snake_to_field(col["name"])
-        if col["type"] == "str":
-            code.append(f'\t\tcct::UInt32 len_{field_name} = static_cast<cct::UInt32>({field_name}.size());')
-            code.append(f'\t\tlen_{field_name} = cct::ByteSwap(len_{field_name});')
-            code.append(f'\t\tstd::memcpy(buffer.data() + offset, &len_{field_name}, sizeof(cct::UInt32));')
-            code.append(f'\t\toffset += sizeof(cct::UInt32);')
-            code.append(f'\t\tstd::memcpy(buffer.data() + offset, {field_name}.data(), {field_name}.size());')
-            code.append(f'\t\toffset += {field_name}.size();')
-        else:
-            code.append(f'\t\t{cpp_type} temp_{field_name} = cct::ByteSwap({field_name});')
-            code.append(f'\t\tstd::memcpy(buffer.data() + offset, &temp_{field_name}, sizeof({cpp_type}));')
-            code.append(f'\t\toffset += sizeof({cpp_type});')
-    code.append("\t\treturn buffer;")
-    code.append("\t}")
-    code.append("")
-    code.append(f'\tstatic {class_name} deserialize(std::span<const cct::Byte> buffer) {{')
-    code.append(f'\t\t{class_name} obj;')
-    code.append("\t\tsize_t offset = 0;")
-    for col in table["columns"]:
-        cpp_type = type_mapping[col["type"]]["cpp"]
-        field_name = snake_to_field(col["name"])
-        if col["type"] == "str":
-            code.append(f'\t\tcct::UInt32 len_{field_name};')
-            code.append(f'\t\tstd::memcpy(&len_{field_name}, buffer.data() + offset, sizeof(cct::UInt32));')
-            code.append(f'\t\tlen_{field_name} = cct::ByteSwap(len_{field_name});')
-            code.append(f'\t\toffset += sizeof(cct::UInt32);')
-            code.append(f'\t\tobj.{field_name}.assign(reinterpret_cast<const char*>(buffer.data() + offset), len_{field_name});')
-            code.append(f'\t\toffset += len_{field_name};')
-        else:
-            code.append(f'\t\t{cpp_type} temp_{field_name};')
-            code.append(f'\t\tstd::memcpy(&temp_{field_name}, buffer.data() + offset, sizeof({cpp_type}));')
-            code.append(f'\t\tobj.{field_name} = cct::ByteSwap(temp_{field_name});')
-            code.append(f'\t\toffset += sizeof({cpp_type});')
-    code.append("\t\treturn obj;")
-    code.append("\t}")
-    code.append("};")
-    return "\n".join(code)
+def is_optional(col: dict) -> bool:
+    # Treat primary keys as non-optional even if not marked not_null.
+    return not (col.get("not_null", False) or col.get("primary_key", False))
 
 def generate_rust_binding(table: dict) -> str:
     struct_name = snake_to_camel(table["name"])
-    lines = []
-    lines.append("#[derive(Debug, Serialize, Deserialize)]")
-    lines.append(f"pub struct {struct_name} {{")
+    code = []
+    # Struct definition
+    code.append(f"#[derive(Debug)]")
+    code.append(f"pub struct {struct_name} {{")
     for col in table["columns"]:
         rust_type = type_mapping[col["type"]]["rust"]
         field_name = col["name"]
-        lines.append(f"    pub {field_name}: {rust_type},")
-    lines.append("}")
-    lines.append("")
-    lines.append(f"impl {struct_name} {{")
-    lines.append("    pub fn serialize(&self) -> Vec<u8> {")
-    lines.append("        let mut total_size = 0;")
+        if is_optional(col):
+            rust_type = f"Option<{rust_type}>"
+        code.append(f"    pub {field_name}: {rust_type},")
+    code.append("}\n")
+
+    # Implementation block with serialize() and deserialize()
+    code.append(f"impl {struct_name} {{")
+    # Serialization
+    code.append("    pub fn serialize(&self) -> Vec<u8> {")
+    code.append("        let mut buffer = Vec::new();")
     for col in table["columns"]:
+        col_type = col["type"]
         field_name = col["name"]
-        if col["type"] == "str":
-            lines.append(f"        total_size += 4 + self.{field_name}.len();")
+        optional = is_optional(col)
+        if optional:
+            code.append(f"        // Serialize optional field: {field_name}")
+            code.append(f"        if let Some(ref value) = self.{field_name} {{")
+            code.append("            buffer.push(1);")
+            if col_type in ["i32", "i64"]:
+                code.append(f"            buffer.extend(&value.to_be_bytes());")
+            elif col_type == "str":
+                # For a string, first write u32 length then the bytes
+                code.append("            let s_bytes = value.as_bytes();")
+                code.append("            let s_len = s_bytes.len() as u32;")
+                code.append("            buffer.extend(&s_len.to_be_bytes());")
+                code.append("            buffer.extend(s_bytes);")
+            code.append("        } else {")
+            code.append("            buffer.push(0);")
+            code.append("        }")
         else:
-            rust_type = type_mapping[col["type"]]["rust"]
-            lines.append(f"        total_size += std::mem::size_of::<{rust_type}>();")
-    lines.append("        let mut buffer = Vec::with_capacity(total_size);")
+            code.append(f"        // Serialize field: {field_name}")
+            if col_type in ["i32", "i64"]:
+                code.append(f"        buffer.extend(&self.{field_name}.to_be_bytes());")
+            elif col_type == "str":
+                code.append(f"        let s_bytes = self.{field_name}.as_bytes();")
+                code.append("        let s_len = s_bytes.len() as u32;")
+                code.append("        buffer.extend(&s_len.to_be_bytes());")
+                code.append("        buffer.extend(s_bytes);")
+    code.append("        buffer")
+    code.append("    }")
+    code.append("")
+    # Deserialization
+    code.append("    pub fn deserialize(data: &[u8]) -> Option<Self> {")
+    code.append("        let mut offset = 0;")
+    field_values = []
     for col in table["columns"]:
+        col_type = col["type"]
         field_name = col["name"]
-        if col["type"] == "str":
-            lines.append(f'        let {field_name}_bytes = self.{field_name}.as_bytes();')
-            lines.append(f"        let len = {field_name}_bytes.len() as u32;")
-            lines.append("        buffer.extend(&len.to_le_bytes());")
-            lines.append(f"        buffer.extend({field_name}_bytes);")
+        optional = is_optional(col)
+        if optional:
+            code.append(f"        // Deserialize optional field: {field_name}")
+            code.append("        if offset + 1 > data.len() { return None; }")
+            code.append("        let flag = data[offset];")
+            code.append("        offset += 1;")
+            code.append(f"        let {field_name} = if flag == 1 {{")
+            if col_type in ["i32"]:
+                code.append("            if offset + 4 > data.len() { return None; }")
+                code.append("            let val = i32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
+                code.append("            offset += 4;")
+                code.append("            Some(val)")
+            elif col_type in ["i64"]:
+                code.append("            if offset + 8 > data.len() { return None; }")
+                code.append("            let val = i64::from_be_bytes(data[offset..offset+8].try_into().ok()?);")
+                code.append("            offset += 8;")
+                code.append("            Some(val)")
+            elif col_type == "str":
+                code.append("            if offset + 4 > data.len() { return None; }")
+                code.append("            let len = u32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
+                code.append("            offset += 4;")
+                code.append("            if offset + (len as usize) > data.len() { return None; }")
+                code.append("            let s = String::from_utf8(data[offset..offset+(len as usize)].to_vec()).ok()?;")
+                code.append("            offset += len as usize;")
+                code.append("            Some(s)")
+            code.append("        } else { None };")
+            field_values.append(field_name)
         else:
-            lines.append(f"        buffer.extend(&self.{field_name}.to_le_bytes());")
-    lines.append("        buffer")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    pub fn deserialize(buffer: &[u8]) -> Self {")
-    lines.append("        let mut offset = 0;")
-    default_fields = []
-    for col in table["columns"]:
-        field_name = col["name"]
-        rust_type = type_mapping[col["type"]]["rust"]
-        if col["type"] == "str":
-            lines.append(f"        let len = u32::from_le_bytes(buffer[offset..offset+4].try_into().unwrap()) as usize;")
-            lines.append("        offset += 4;")
-            lines.append(f"        let {field_name} = String::from_utf8(buffer[offset..offset+len].to_vec()).unwrap();")
-            lines.append("        offset += len;")
-            default_fields.append(f"{field_name}")
-        else:
-            lines.append(f"        let {field_name} = {rust_type}::from_le_bytes(buffer[offset..offset+std::mem::size_of::<{rust_type}>()].try_into().unwrap());")
-            lines.append(f"        offset += std::mem::size_of::<{rust_type}>();")
-            default_fields.append(f"{field_name}")
-    lines.append(f"        Self {{ {', '.join(default_fields)} }}")
-    lines.append("    }")
-    lines.append("}")
-    return "\n".join(lines)
+            code.append(f"        // Deserialize field: {field_name}")
+            if col_type in ["i32"]:
+                code.append("        if offset + 4 > data.len() { return None; }")
+                code.append(f"        let {field_name} = i32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
+                code.append("        offset += 4;")
+            elif col_type in ["i64"]:
+                code.append("        if offset + 8 > data.len() { return None; }")
+                code.append(f"        let {field_name} = i64::from_be_bytes(data[offset..offset+8].try_into().ok()?);")
+                code.append("        offset += 8;")
+            elif col_type == "str":
+                code.append("        if offset + 4 > data.len() { return None; }")
+                code.append("        let len = u32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
+                code.append("        offset += 4;")
+                code.append("        if offset + (len as usize) > data.len() { return None; }")
+                code.append(f"        let {field_name} = String::from_utf8(data[offset..offset+(len as usize)].to_vec()).ok()?;")
+                code.append("        offset += len as usize;")
+            field_values.append(field_name)
+    # Build the struct with all fields
+    code.append(f"        Some({struct_name} {{")
+    for field in field_values:
+        code.append(f"            {field},")
+    code.append("        })")
+    code.append("    }")
+    code.append("}")
+    return "\n".join(code)
+
+def generate_rust_file(json_data: dict) -> str:
+    header = (
+        "// This file is generated by generate_bindings.py\n"
+        "// Do not edit manually\n"
+        "\n"
+        "use std::convert::TryInto;\n\n"
+    )
+    bindings = []
+    # Generate bindings for each table
+    for table in json_data["tables"]:
+        bindings.append(generate_rust_binding(table))
+        bindings.append("\n")
+    
+    # Generate the Packet enum with dispatching on a u32 command id.
+    bindings.append("#[derive(Debug)]")
+    bindings.append("pub enum Packet {")
+    for i, table in enumerate(json_data["tables"]):
+        variant = snake_to_camel(table["name"])
+        bindings.append(f"    {variant}({variant}),")
+    bindings.append("}\n")
+    
+    bindings.append("impl Packet {")
+    # Serialization: prepend a 4-byte command id (big-endian) then the serialized data.
+    bindings.append("    pub fn serialize(&self) -> Vec<u8> {")
+    bindings.append("        let mut buffer = Vec::new();")
+    bindings.append("        match self {")
+    for i, table in enumerate(json_data["tables"]):
+        variant = snake_to_camel(table["name"])
+        bindings.append(f"            Packet::{variant}(val) => {{")
+        bindings.append(f"                buffer.extend(&({i}u32).to_be_bytes());")
+        bindings.append("                buffer.extend(&val.serialize());")
+        bindings.append("            },")
+    bindings.append("        }")
+    bindings.append("        buffer")
+    bindings.append("    }")
+    bindings.append("")
+    # Deserialization: read the first 4 bytes as command id then deserialize accordingly.
+    bindings.append("    pub fn deserialize(data: &[u8]) -> Option<Packet> {")
+    bindings.append("        if data.len() < 4 {")
+    bindings.append("            return None;")
+    bindings.append("        }")
+    bindings.append("        let command_id = u32::from_be_bytes(data[0..4].try_into().ok()?);")
+    bindings.append("        let payload = &data[4..];")
+    bindings.append("        match command_id {")
+    for i, table in enumerate(json_data["tables"]):
+        variant = snake_to_camel(table["name"])
+        bindings.append(f"            {i} => {{")
+        bindings.append(f"                let val = {variant}::deserialize(payload)?;")
+        bindings.append(f"                Some(Packet::{variant}(val))")
+        bindings.append("            },")
+    bindings.append("            _ => None,")
+    bindings.append("        }")
+    bindings.append("    }")
+    bindings.append("}\n")
+    
+    return header + "\n".join(bindings)
 
 def generate_sql_schema(table: dict) -> str:
     lines = []
@@ -150,82 +207,6 @@ def generate_sql_schema(table: dict) -> str:
     lines.append(");")
     return "\n".join(lines)
 
-def write_to_file(filename: str, content: str):
-    output_dir = os.path.dirname(filename)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(content)
-
-def generate_cpp_file(json_data: dict) -> str:
-    header = (
-        "/// This file is generated by generate_bindings.py\n"
-        "/// Do not edit manually\n"
-        "#pragma once\n"
-        "#include <cstdint>\n"
-        "#include <vector>\n"
-        "#include <string>\n"
-        "#include <cstring>\n"
-        "#include <variant>\n"
-        "#include <span>\n"
-        "#include <Concerto/Core/ByteSwap.hpp>\n\n"
-    )
-    classes = []
-    classes.append(f"enum class EventType {{")
-    for i, value in enumerate(json_data["tables"]):
-        classes.append(f"\t{snake_to_camel(value['name'])} = {i},")
-    classes.append("};")
-    classes.append("\n")
-
-    
-    for table in json_data["tables"]:
-        classes.append(generate_cpp_binding(table))
-        classes.append("\n")
-    
-    code = "inline std::variant<std::monostate, "
-    for klass in json_data["tables"]:
-        code += f"{snake_to_camel(klass['name'])}, "
-    code = code[:-2] + "> Deserialize(const std::vector<cct::Byte>& data) {\n"
-    code += "\tdecltype(Deserialize(data)) res;\n"
-    code += "\tif (data.size() < sizeof(cct::UInt32)) return res;\n"
-    code += "\tcct::UInt32 type;\n"
-    code += "\tstd::memcpy(&type, data.data(), sizeof(cct::UInt32));\n"
-    code += "\ttype = cct::ByteSwap(type);\n"
-    code += "\tswitch (type) {\n"
-    for i, table in enumerate(json_data["tables"]):
-        code += f"\t\tcase {i}:\n"
-        code += f"\t\t\tres = {snake_to_camel(table['name'])}::deserialize(std::span<const cct::Byte>(data.data() + sizeof(cct::UInt32), data.size() - sizeof(cct::UInt32)));\n"
-        code += "\t\t\tbreak;\n"
-    code += "\t\tdefault:\n"
-    code += "\t\t\tbreak;\n"
-    code += "\t}\n"
-    code += "\treturn res;\n"
-    code += "}\n\n"
-
-    code += "template<typename T>\n"
-    code += "inline std::vector<cct::Byte> Serialize(const T& obj) {\n"
-    code += "\tstd::vector<cct::Byte> buffer;\n"
-    code += "\tbuffer.reserve(sizeof(cct::UInt32));\n"
-    for table in json_data["tables"]:
-        code += f"\tif constexpr (std::is_same_v<T, {snake_to_camel(table['name'])}>) {{\n"
-        code += f"\t\tcct::UInt32 type = static_cast<cct::UInt32>(EventType::{snake_to_camel(table['name'])});\n"
-        code += "\t\ttype = cct::ByteSwap(type);\n"
-        code += "\t\tstd::memcpy(buffer.data(), &type, sizeof(cct::UInt32));\n"
-        code += "\t\tauto serializedType = obj.serialize();\n"
-        code += "\t\tbuffer.insert(buffer.end(), serializedType.begin(), serializedType.end());\n"
-        code += "\t\treturn buffer;\n"
-        code += "\t}\n"
-    code += "\treturn buffer;\n"
-    code += "}\n\n"
-    return header + "\n".join(classes) + "\n" + code
-
-def generate_rust_file(json_data: dict) -> str:
-    modules = []
-    for table in json_data["tables"]:
-        modules.append(generate_rust_binding(table))
-        modules.append("\n")
-    return "\n".join(modules)
-
 def generate_sql_file(json_data: dict) -> str:
     code = "pub const DATABASE_SCHEMA: &str = r###\""
     for table in json_data["tables"]:
@@ -234,8 +215,15 @@ def generate_sql_file(json_data: dict) -> str:
     code += "\"###;\n\n"
     return code
 
+def write_to_file(filename: str, content: str):
+    output_dir = os.path.dirname(filename)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content)
+
 def main():
-    args = os.sys.argv
+    args = sys.argv
     if len(args) != 4:
         print("Usage: python generate_bindings.py lang output_file json_file")
         return
@@ -250,11 +238,12 @@ def main():
     with open(json_file, "r", encoding="utf-8") as f:
         json_data = json.load(f)
         if lang == "cpp":
-            content = generate_cpp_file(json_data)
-            write_to_file(output_file, content)
+            # Not implemented in this script (use your existing generate_bindings.py for cpp)
+            print("C++ generation is not implemented in this script.")
+            return
         elif lang == "rust":
-            content = generate_sql_file(json_data) + generate_rust_file(json_data)
-            write_to_file(output_file, content)
+            rust_code = generate_sql_file(json_data) + "\n\n" +  generate_rust_file(json_data)
+            write_to_file(output_file, rust_code)
 
 if __name__ == "__main__":
     main()

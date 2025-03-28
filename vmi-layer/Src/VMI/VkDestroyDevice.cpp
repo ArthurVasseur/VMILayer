@@ -7,5 +7,5 @@
 
 void vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator)
 {
-	CCT_BREAK_IN_DEBUGGER;
+
 }

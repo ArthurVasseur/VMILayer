@@ -11,5 +11,6 @@ fn main() {
         .arg("../../schema.json")
         .output()
         .expect("Failed to generate bindings");
-    println!("Bindings generation output: {:?}", output);
+    println!("cargo:rerun-if-changed={}", "../../generate_bindings.py");
+    println!("cargo:rerun-if-changed={}", "../../schema.json");
 }

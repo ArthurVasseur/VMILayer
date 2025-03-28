@@ -1,17 +1,20 @@
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
+use bindings::Packet;
 use chrono::DateTime;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::params;
-use zmq;
-use serde::Deserialize;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
+use std::io::Read;
 mod bindings;
 
 fn init_database(pool: &Pool<SqliteConnectionManager>) {
-    let conn = pool.get().expect("Could not get a connection from the pool");
-    conn.execute_batch(bindings::DATABASE_SCHEMA).expect("Failed to create database schema");
+    let conn = pool
+        .get()
+        .expect("Could not get a connection from the pool");
+    conn.execute_batch(bindings::DATABASE_SCHEMA)
+        .expect("Failed to create database schema");
 }
 
 fn main() {
@@ -19,55 +22,38 @@ fn main() {
     let database_name = format!("{}.vmi", now.format("%Y-%m-%d_%H-%M-%S-%3f"));
     let vmi_temp_dir = std::env::temp_dir().join("VulkanMemoryInspector");
     std::fs::create_dir_all(&vmi_temp_dir).expect("Could not create directory");
-    let database_path  = vmi_temp_dir.join(database_name);
+    let database_path = vmi_temp_dir.join(database_name);
     let manager = SqliteConnectionManager::file(&database_path);
     let pool = Pool::new(manager).expect("Could not create a connection pool");
 
     init_database(&pool);
     println!("Database initialized at {}", database_path.display());
 
-    let (tx, rx) = mpsc::channel::<bindings::VulkanEvent>();
+    let (tx, rx) = mpsc::channel::<bindings::Packet>();
 
-    let zmq_tx = tx.clone();
+    let socket_tx = tx.clone();
     thread::spawn(move || {
-        let context = zmq::Context::new();
-        let socket = context.socket(zmq::REP).expect("Impossible de créer le socket ZMQ");
-        socket.bind("tcp://*:2104").expect("Échec du bind du socket ZMQ");
-
-        loop {
-            let msg = match socket.recv_msg(0) {
-                Ok(m) => m,
-                Err(e) => {
-                    eprintln!("Erreur lors de la réception ZMQ: {}", e);
-                    continue;
+        let listener = std::net::TcpListener::bind("127.0.0.1:2104").unwrap();
+        for stream in listener.incoming() {
+            match stream {
+                Ok(stream) => {
+                    println!("New connection: {}", stream.peer_addr().unwrap());
+                    let socket_tx_clone = socket_tx.clone();
+                    thread::spawn(move || {
+                            handle_client(stream, socket_tx_clone);
+                    });
                 }
-            };
-
-            let msg_str = msg.as_str().unwrap_or("");
-            println!("Message reçu: {}", msg_str);
-
-            let event: bindings::VulkanEvent = match serde_json::from_str(msg_str) {
-                Ok(ev) => ev,
-                Err(e) => {
-                    eprintln!("Erreur de parsing JSON: {}", e);
-                    continue;
-                }
-            };
-
-            if let Err(e) = zmq_tx.send(event) {
-                eprintln!("Erreur lors de l'envoi de l'événement: {}", e);
+                Err(err) => println!("Connection failed due to {:?}", err)
             }
-
-            socket.send("Accusé de réception", 0).expect("Échec de l'envoi de la réponse ZMQ");
         }
     });
 
     let pool_clone = pool.clone();
     thread::spawn(move || {
-        let mut buffer: Vec<bindings::VulkanEvent> = Vec::new();
+        let mut buffer: Vec<bindings::Packet> = Vec::new();
 
         loop {
-            while let Ok(event) = rx.recv_timeout(Duration::from_millis(100)) {
+            while let Ok(event) = rx.recv_timeout(Duration::from_millis(10)) {
                 buffer.push(event);
                 if buffer.len() >= 100 {
                     break;
@@ -75,24 +61,56 @@ fn main() {
             }
 
             if !buffer.is_empty() {
-                let mut conn = pool_clone.get().expect("Impossible de récupérer une connexion du pool");
-                let tx = conn.transaction().expect("Échec du démarrage de la transaction");
+                let mut conn = pool_clone
+                    .get()
+                    .expect("Impossible de récupérer une connexion du pool");
+                let tx = conn
+                    .transaction()
+                    .expect("Échec du démarrage de la transaction");
 
                 for event in &buffer {
-                    tx.execute(
-                        "INSERT INTO vulkan_events (timestamp, frame_number, function_name, event_type, memory_delta, parameters, result_code, thread_id)
-                        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                        params![
-                            event.timestamp,
-                            event.frame_number,
-                            event.function_name,
-                            event.event_type,
-                            event.memory_delta,
-                            event.parameters,
-                            event.result_code,
-                            event.thread_id,
-                        ],
-                    ).expect("Could not insert Vulkan event");
+                    match event {
+                        Packet::VulkanEvent(vulkan_event) => {
+                            tx.execute(
+                                "INSERT INTO vulkan_events (timestamp, frame_number, function_name, event_type, memory_delta, parameters, result_code, thread_id)
+                                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                params![
+                                    vulkan_event.timestamp,
+                                    vulkan_event.frame_number,
+                                    vulkan_event.function_name,
+                                    vulkan_event.event_type,
+                                    vulkan_event.memory_delta,
+                                    vulkan_event.parameters,
+                                    vulkan_event.result_code,
+                                    vulkan_event.thread_id,
+                                ],
+                            ).expect("Could not insert Vulkan event");
+                        }
+                        Packet::MemoryUsage(memory_usage_event) => {
+                            tx.execute(
+                                "INSERT INTO memory_usage (timestamp, frame_number, memory_type, memory_size, memory_usage)
+                                VALUES (?1, ?2, ?3, ?4, ?5)",
+                                params![
+                                    memory_usage_event.device_memory,
+                                    memory_usage_event.frame_index_allocated,
+                                    memory_usage_event.allocated_at,
+                                    memory_usage_event.allocation_size,
+                                    memory_usage_event.frame_index_deallocated,
+                                    memory_usage_event.deallocated_at,
+                                ],
+                            ).expect("Could not insert Memory usage event");
+                        }
+                        Packet::FrameInformation(frame_information) => {
+                            tx.execute(
+                                "INSERT INTO frame_information (frame_index, started_at)
+                                VALUES (?1, ?2)",
+                                params![
+                                    frame_information.frame_index,
+                                    frame_information.started_at,
+                                ],
+                            ).expect("Could not insert Frame information event");
+                        }
+                    }
                 }
 
                 tx.commit().expect("Could not commit transaction");
@@ -103,4 +121,28 @@ fn main() {
     });
 
     app_lib::run();
+}
+
+
+fn handle_client(mut stream: std::net::TcpStream, zmq_tx: mpsc::Sender<Packet>) {
+    let mut buffer = [0; 4096];
+    loop {
+        match stream.read(&mut buffer) {
+            Ok(0) => break, // Connection closed
+            Ok(n) => {
+                let packet = Packet::deserialize(&buffer[..n]);
+                if packet.is_none() {
+                    eprintln!("Failed to deserialize packet");
+                    continue;
+                }
+                zmq_tx.send(packet.unwrap()).unwrap_or_else(|_| {
+                    eprintln!("Failed to send packet to main thread");
+                });
+            }
+            Err(e) => {
+                eprintln!("Error reading from stream: {}", e);
+                break;
+            }
+        }
+    }
 }

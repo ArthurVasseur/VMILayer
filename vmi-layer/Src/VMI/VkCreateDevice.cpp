@@ -29,7 +29,7 @@ VkResult vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInf
 	vkuInitDeviceDispatchTable(*pDevice, &dispatchTable, getDeviceProcAddr);
 
 	VMI_CATCH_AND_RETURN(
-		VulkanMemoryInspector::GetInstance().AddDeviceDispatchTable(GetKey(*pDevice), dispatchTable);
+		VulkanMemoryInspector::GetInstance()->AddDeviceDispatchTable(GetKey(*pDevice), dispatchTable);
 	, VK_ERROR_INITIALIZATION_FAILED, vkCreateDevice(physicalDevice, pCreateInfo, pAllocator, pDevice));
 
 	return VK_SUCCESS;

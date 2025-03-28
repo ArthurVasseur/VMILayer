@@ -26,7 +26,7 @@ export default function LaunchApplicationModal({ isOpen, setIsOpen }: LaunchAppl
     const file = await open({ multiple: false, directory: false});
     if (file) {
       setFilePath(file);
-      setWorkingDir(file);
+      setWorkingDir(file.substring(0, file.lastIndexOf("\\")));
       setAlertMessage(null);
     }
   }

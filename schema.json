@@ -11,12 +11,12 @@
         },
         {
           "name": "timestamp",
-          "type": "str",
+          "type": "i64",
           "not_null": true
         },
         {
           "name": "frame_number",
-          "type": "i32",
+          "type": "i64",
           "not_null": true
         },
         {
@@ -42,7 +42,7 @@
         },
         {
           "name": "thread_id",
-          "type": "str"
+          "type": "i64"
         }
       ]
     },
@@ -56,7 +56,7 @@
         },
         {
           "name": "started_at",
-          "type": "str",
+          "type": "i64",
           "not_null": true
         }
       ]
@@ -94,7 +94,7 @@
         },
         {
           "name": "deallocated_at",
-          "type": "str"
+          "type": "i64"
         }
       ]
     }

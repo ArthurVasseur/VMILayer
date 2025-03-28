@@ -32,9 +32,10 @@ fn launch_application(file_path: String, working_directory: String, command_args
         .collect::<Vec<String>>();
 
     let mut env = HashMap::new();
-    let layer_path = PathBuf::from("../vmi-layer/VK_LAYER_vmi.json");
-    let layer_full_path = fs::canonicalize(&layer_path).unwrap_or_else(|_| {
-        panic!("Failed to get the full path of the layer file: {:?}", layer_path)
+
+    let layer_path = PathBuf::from("../../vmi-layer/VK_LAYER_vmi.json");
+    let layer_full_path = fs::canonicalize(&layer_path).unwrap_or_else(|error| {
+        panic!("Failed to get the full path of the layer file: {:?}, error: {:?}", layer_path, error)
     });
 
     env.insert(
@@ -45,7 +46,7 @@ fn launch_application(file_path: String, working_directory: String, command_args
     env.insert("VK_INSTANCE_LAYERS".into(), "VK_LAYER_AV_vmi".into());
     env.insert("VK_LOADER_LAYERS_ENABLE".into(), "VK_LAYER_AV_vmi".into());
     env.insert("ENABLE_VMI_LAYER".into(), "1".into());
-    env.insert("VK_LOADER_DEBUG".into(), "all".into());
+    //env.insert("VK_LOADER_DEBUG".into(), "all".into());
 
     match spawn_detached_process(file_path.as_path(), &command_args, &working_directory, &env) {
         Ok(_) => println!(

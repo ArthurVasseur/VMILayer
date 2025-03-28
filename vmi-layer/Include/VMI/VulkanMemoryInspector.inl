@@ -7,7 +7,7 @@
 
 #include "VMI/VulkanMemoryInspector.hpp"
 
-inline VulkanMemoryInspector& VulkanMemoryInspector::GetInstance()
+inline std::shared_ptr<VulkanMemoryInspector> VulkanMemoryInspector::GetInstance()
 {
 	return instance;
 }
@@ -47,6 +47,31 @@ inline const VkuDeviceDispatchTable* VulkanMemoryInspector::GetDeviceDispatchTab
 inline VkAllocationCallbacks VulkanMemoryInspector::GetAllocationCallbacks() const
 {
 	return _allocationCallbacks;
+}
+
+inline cct::Int32 VulkanMemoryInspector::GetFrameIndex() const
+{
+	return _frameIndex;
+}
+
+inline void VulkanMemoryInspector::Send(std::span<cct::Byte> memoryBlock)
+{
+	if (!_socket)
+	{
+		CCT_ASSERT_FALSE("Invalid socket pointer");
+		return;
+	}
+	_socket->Send(memoryBlock.data(), memoryBlock.size());
+}
+
+inline void VulkanMemoryInspector::CreateInstance()
+{
+	instance = std::make_shared<VulkanMemoryInspector>();
+}
+
+inline void VulkanMemoryInspector::DestroyInstance()
+{
+	instance = nullptr;
 }
 
 #endif //GEI_GRAPHICSENGINEINTERCEPTOR_INL

@@ -4,8 +4,10 @@
 
 
 #include "VMI/VulkanFunctions.hpp"
-
+#include "VMI/VulkanMemoryInspector.hpp"
 void vkDestroyInstance(VkInstance instance, const VkAllocationCallbacks* pAllocator)
 {
-	CCT_BREAK_IN_DEBUGGER;
+	auto vmiInstance = VulkanMemoryInspector::GetInstance();
+	if (vmiInstance.use_count() == 1)
+		VulkanMemoryInspector::DestroyInstance();
 }

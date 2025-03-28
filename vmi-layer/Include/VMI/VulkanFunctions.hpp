@@ -37,7 +37,7 @@
 
 
 #define VMI_GET_ALLOCATION_CALLBACKS(variableName)										\
-	auto variableName = VulkanMemoryInspector::GetInstance().GetAllocationCallbacks();	\
+	auto variableName = VulkanMemoryInspector::GetInstance()->GetAllocationCallbacks();	\
 	LowerAllocation lowerAllocation87 =													\
 	{																					\
 		.allocationCallbacks = pAllocator												\

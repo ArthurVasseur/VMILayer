@@ -38,6 +38,8 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 	if (createInstanceFunc == nullptr)
 		return VK_ERROR_INITIALIZATION_FAILED;
 
+	if (!VulkanMemoryInspector::GetInstance())
+		VulkanMemoryInspector::CreateInstance();
 	VMI_GET_ALLOCATION_CALLBACKS(allocationCallbacks);
 
 	result = createInstanceFunc(pCreateInfo, &allocationCallbacks, pInstance);
@@ -51,7 +53,7 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 	vkuInitInstanceDispatchTable(*pInstance, &dispatchTable, getProcAddr);
 
 	VMI_CATCH_AND_RETURN(
-		VulkanMemoryInspector::GetInstance().AddInstanceDispatchTable(GetKey(*pInstance), dispatchTable);
+		VulkanMemoryInspector::GetInstance()->AddInstanceDispatchTable(GetKey(*pInstance), dispatchTable);
 	, VK_ERROR_INITIALIZATION_FAILED, vkCreateInstance(pCreateInfo, pAllocator, pInstance));
 
 	cct::Logger::Error("GEI everything ok returning ");

@@ -24,6 +24,7 @@ log = "0.4"
 tauri = { version = "2.4.0", features = [] }
 tauri-plugin-log = "2.0.0-rc"
 tauri-plugin-dialog = "2"
+zmq = "0.10.0"
 chrono = "0.4.40"
 rusqlite = { version = "0.34.0", features = ["bundled"] }
 r2d2_sqlite = "0.27.0"
