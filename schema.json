@@ -81,7 +81,7 @@
         },
         {
           "name": "allocated_at",
-          "type": "str",
+          "type": "i64",
           "not_null": true
         },
         {

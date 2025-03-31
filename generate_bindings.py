@@ -16,10 +16,6 @@ def snake_to_field(name: str) -> str:
     parts = name.split('_')
     return parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
 
-def is_optional(col: dict) -> bool:
-    # Treat primary keys as non-optional even if not marked not_null.
-    return not (col.get("not_null", False) or col.get("primary_key", False))
-
 def generate_rust_binding(table: dict) -> str:
     struct_name = snake_to_camel(table["name"])
     code = []
@@ -29,8 +25,6 @@ def generate_rust_binding(table: dict) -> str:
     for col in table["columns"]:
         rust_type = type_mapping[col["type"]]["rust"]
         field_name = col["name"]
-        if is_optional(col):
-            rust_type = f"Option<{rust_type}>"
         code.append(f"    pub {field_name}: {rust_type},")
     code.append("}\n")
 
@@ -42,88 +36,51 @@ def generate_rust_binding(table: dict) -> str:
     for col in table["columns"]:
         col_type = col["type"]
         field_name = col["name"]
-        optional = is_optional(col)
-        if optional:
-            code.append(f"        // Serialize optional field: {field_name}")
-            code.append(f"        if let Some(ref value) = self.{field_name} {{")
-            code.append("            buffer.push(1);")
-            if col_type in ["i32", "i64"]:
-                code.append(f"            buffer.extend(&value.to_be_bytes());")
-            elif col_type == "str":
-                # For a string, first write u32 length then the bytes
-                code.append("            let s_bytes = value.as_bytes();")
-                code.append("            let s_len = s_bytes.len() as u32;")
-                code.append("            buffer.extend(&s_len.to_be_bytes());")
-                code.append("            buffer.extend(s_bytes);")
-            code.append("        } else {")
-            code.append("            buffer.push(0);")
-            code.append("        }")
-        else:
-            code.append(f"        // Serialize field: {field_name}")
-            if col_type in ["i32", "i64"]:
-                code.append(f"        buffer.extend(&self.{field_name}.to_be_bytes());")
-            elif col_type == "str":
-                code.append(f"        let s_bytes = self.{field_name}.as_bytes();")
-                code.append("        let s_len = s_bytes.len() as u32;")
-                code.append("        buffer.extend(&s_len.to_be_bytes());")
-                code.append("        buffer.extend(s_bytes);")
+        code.append(f"        // Serialize field: {field_name}")
+        if col_type in ["i32", "i64"]:
+            code.append(f"        buffer.extend(&self.{field_name}.to_be_bytes());")
+        elif col_type == "str":
+            code.append(f"        let s_bytes = self.{field_name}.as_bytes();")
+            code.append("        let s_len = s_bytes.len() as u32;")
+            code.append("        buffer.extend(&s_len.to_be_bytes());")
+            code.append("        buffer.extend(s_bytes);")
     code.append("        buffer")
     code.append("    }")
     code.append("")
     # Deserialization
-    code.append("    pub fn deserialize(data: &[u8]) -> Option<Self> {")
+    code.append("    pub fn deserialize(data: &[u8]) -> Result<Self, String> {")
     code.append("        let mut offset = 0;")
     field_values = []
     for col in table["columns"]:
         col_type = col["type"]
         field_name = col["name"]
-        optional = is_optional(col)
-        if optional:
-            code.append(f"        // Deserialize optional field: {field_name}")
-            code.append("        if offset + 1 > data.len() { return None; }")
-            code.append("        let flag = data[offset];")
-            code.append("        offset += 1;")
-            code.append(f"        let {field_name} = if flag == 1 {{")
-            if col_type in ["i32"]:
-                code.append("            if offset + 4 > data.len() { return None; }")
-                code.append("            let val = i32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
-                code.append("            offset += 4;")
-                code.append("            Some(val)")
-            elif col_type in ["i64"]:
-                code.append("            if offset + 8 > data.len() { return None; }")
-                code.append("            let val = i64::from_be_bytes(data[offset..offset+8].try_into().ok()?);")
-                code.append("            offset += 8;")
-                code.append("            Some(val)")
-            elif col_type == "str":
-                code.append("            if offset + 4 > data.len() { return None; }")
-                code.append("            let len = u32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
-                code.append("            offset += 4;")
-                code.append("            if offset + (len as usize) > data.len() { return None; }")
-                code.append("            let s = String::from_utf8(data[offset..offset+(len as usize)].to_vec()).ok()?;")
-                code.append("            offset += len as usize;")
-                code.append("            Some(s)")
-            code.append("        } else { None };")
-            field_values.append(field_name)
-        else:
-            code.append(f"        // Deserialize field: {field_name}")
-            if col_type in ["i32"]:
-                code.append("        if offset + 4 > data.len() { return None; }")
-                code.append(f"        let {field_name} = i32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
-                code.append("        offset += 4;")
-            elif col_type in ["i64"]:
-                code.append("        if offset + 8 > data.len() { return None; }")
-                code.append(f"        let {field_name} = i64::from_be_bytes(data[offset..offset+8].try_into().ok()?);")
-                code.append("        offset += 8;")
-            elif col_type == "str":
-                code.append("        if offset + 4 > data.len() { return None; }")
-                code.append("        let len = u32::from_be_bytes(data[offset..offset+4].try_into().ok()?);")
-                code.append("        offset += 4;")
-                code.append("        if offset + (len as usize) > data.len() { return None; }")
-                code.append(f"        let {field_name} = String::from_utf8(data[offset..offset+(len as usize)].to_vec()).ok()?;")
-                code.append("        offset += len as usize;")
-            field_values.append(field_name)
+
+        code.append(f"        // Deserialize field: {field_name}")
+        if col_type in ["i32"] or col_type == "i64":
+            code.append(f"         if offset + std::mem::size_of::<{col_type}>() > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned());}}")
+            code.append(f"         let slice: Result<_, _> = data[offset..offset+std::mem::size_of::<{col_type}>()].try_into();")
+            code.append(f"         if slice.is_err() {{ return Err(\"Failed to convert to {col_type}\".to_owned()); }}")
+            code.append(f"         let slice = slice.unwrap();")
+            code.append(f"         let {field_name} = {col_type}::from_be_bytes(slice);")
+            code.append(f"         offset += std::mem::size_of::<{col_type}>();")
+        elif col_type == "str":
+            code.append(f"         if offset + std::mem::size_of::<u32>() > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned());}}")
+            code.append(f"         let mut slice_result: Result<_, _> = data[offset..offset+std::mem::size_of::<u32>()].try_into();")
+            code.append(f"         if slice_result.is_err() {{ return Err(\"Failed to convert to i32\".to_owned()); }}")
+            code.append(f"         let mut slice = slice_result.unwrap();")
+            code.append(f"         let len = i32::from_be_bytes(slice);")
+            code.append(f"         offset += std::mem::size_of::<u32>();")
+            code.append(f"         if offset + len as usize > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned());}}")
+            code.append(f"         slice_result = data[offset..offset+len as usize].try_into();")
+            code.append(f"         if slice_result.is_err() {{ return Err(\"Failed to convert to i32\".to_owned()); }}")
+            code.append(f"         slice = slice_result.unwrap();")
+            code.append(f"         let s = String::from_utf8(slice.to_vec());")
+            code.append(f"         if s.is_err() {{ return Err(\"Failed to convert to String\".to_owned()); }}")
+            code.append(f"         let {field_name} = s.unwrap();")
+            code.append(f"         offset += len as usize;")
+        field_values.append(field_name)
     # Build the struct with all fields
-    code.append(f"        Some({struct_name} {{")
+    code.append(f"        Ok({struct_name} {{")
     for field in field_values:
         code.append(f"            {field},")
     code.append("        })")
@@ -178,8 +135,10 @@ def generate_rust_file(json_data: dict) -> str:
     for i, table in enumerate(json_data["tables"]):
         variant = snake_to_camel(table["name"])
         bindings.append(f"            {i} => {{")
-        bindings.append(f"                let val = {variant}::deserialize(payload)?;")
-        bindings.append(f"                Some(Packet::{variant}(val))")
+        bindings.append(f"                match {variant}::deserialize(payload) {{")
+        bindings.append(f"                  Ok(val) => Some(Packet::{variant}(val)),")
+        bindings.append(f"                  Err(error_message) => {{println!(\"Failed to deserialize {variant}, {{}}: \", error_message); None}}")
+        bindings.append("                }")
         bindings.append("            },")
     bindings.append("            _ => None,")
     bindings.append("        }")
@@ -215,6 +174,125 @@ def generate_sql_file(json_data: dict) -> str:
     code += "\"###;\n\n"
     return code
 
+def generate_cpp_file(json_data: dict) -> str:
+    header = (
+        "/// This file is generated by generate_bindings.py\n"
+        "/// Do not edit manually\n"
+        "#pragma once\n"
+        "#include <cstdint>\n"
+        "#include <vector>\n"
+        "#include <string>\n"
+        "#include <cstring>\n"
+        "#include <variant>\n"
+        "#include <span>\n"
+        "#include <Concerto/Core/ByteSwap.hpp>\n\n"
+    )
+    classes = []
+    classes.append(f"enum class EventType {{")
+    for i, value in enumerate(json_data["tables"]):
+        classes.append(f"\t{snake_to_camel(value['name'])} = {i},")
+    classes.append("};")
+    classes.append("\n")
+    for table in json_data["tables"]:
+        classes.append(generate_cpp_binding(table))
+        classes.append("\n")
+    code = "inline std::variant<std::monostate, "
+    for klass in json_data["tables"]:
+        code += f"{snake_to_camel(klass['name'])}, "
+    code = code[:-2] + "> Deserialize(const std::vector<cct::Byte>& data) {\n"
+    code += "\tdecltype(Deserialize(data)) res;\n"
+    code += "\tif (data.size() < sizeof(cct::UInt32)) return res;\n"
+    code += "\tcct::UInt32 type;\n"
+    code += "\tstd::memcpy(&type, data.data(), sizeof(cct::UInt32));\n"
+    code += "\ttype = cct::ByteSwap(type);\n"
+    code += "\tswitch (type) {\n"
+    for i, table in enumerate(json_data["tables"]):
+        code += f"\t\tcase {i}:\n"
+        code += f"\t\t\tres = {snake_to_camel(table['name'])}::deserialize(std::span<const cct::Byte>(data.data() + sizeof(cct::UInt32), data.size() - sizeof(cct::UInt32)));\n"
+        code += "\t\t\tbreak;\n"
+    code += "\t\tdefault:\n"
+    code += "\t\t\tbreak;\n"
+    code += "\t}\n"
+    code += "\treturn res;\n"
+    code += "}\n\n"
+
+    code += "template<typename T>\n"
+    code += "inline std::vector<cct::Byte> Serialize(const T& obj) {\n"
+    code += "\tstd::vector<cct::Byte> buffer(sizeof(cct::UInt32));\n"
+    for table in json_data["tables"]:
+        code += f"\tif constexpr (std::is_same_v<T, {snake_to_camel(table['name'])}>) {{\n"
+        code += f"\t\tcct::UInt32 type = static_cast<cct::UInt32>(EventType::{snake_to_camel(table['name'])});\n"
+        code += "\t\ttype = cct::ByteSwap(type);\n"
+        code += "\t\tstd::memcpy(buffer.data(), &type, sizeof(cct::UInt32));\n"
+        code += "\t\tauto serializedType = obj.serialize();\n"
+        code += "\t\tbuffer.insert(buffer.end(), serializedType.begin(), serializedType.end());\n"
+        code += "\t\treturn buffer;\n"
+        code += "\t}\n"
+    code += "\treturn buffer;\n"
+    code += "}\n\n"
+    return header + "\n".join(classes) + "\n" + code
+
+def generate_cpp_binding(table: dict) -> str:
+    class_name = snake_to_camel(table["name"])
+    code = []
+    code.append(f"class {class_name} {{")
+    code.append("public:")
+    for col in table["columns"]:
+        cpp_type = type_mapping[col["type"]]["cpp"]
+        field_name = snake_to_field(col["name"])
+        code.append(f"\t{cpp_type} {field_name};")
+    code.append("")
+    code.append("\tstd::vector<cct::Byte> serialize() const {")
+    code.append("\t\tsize_t total_size = 0;")
+    for col in table["columns"]:
+        field_name = snake_to_field(col["name"])
+        if col["type"] == "str":
+            code.append(f"\t\ttotal_size += sizeof(cct::UInt32) + {field_name}.size();")
+        else:
+            cpp_type = type_mapping[col["type"]]["cpp"]
+            code.append(f"\t\ttotal_size += sizeof({cpp_type});")
+    code.append("\t\tstd::vector<cct::Byte> buffer(total_size);")
+    code.append("\t\tsize_t offset = 0;")
+    for col in table["columns"]:
+        cpp_type = type_mapping[col["type"]]["cpp"]
+        field_name = snake_to_field(col["name"])
+        if col["type"] == "str":
+            code.append(f'\t\tcct::UInt32 len_{field_name} = static_cast<cct::UInt32>({field_name}.size());')
+            code.append(f'\t\tlen_{field_name} = cct::ByteSwap(len_{field_name});')
+            code.append(f'\t\tstd::memcpy(buffer.data() + offset, &len_{field_name}, sizeof(cct::UInt32));')
+            code.append(f'\t\toffset += sizeof(cct::UInt32);')
+            code.append(f'\t\tstd::memcpy(buffer.data() + offset, {field_name}.data(), {field_name}.size());')
+            code.append(f'\t\toffset += {field_name}.size();')
+        else:
+            code.append(f'\t\t{cpp_type} temp_{field_name} = cct::ByteSwap({field_name});')
+            code.append(f'\t\tstd::memcpy(buffer.data() + offset, &temp_{field_name}, sizeof({cpp_type}));')
+            code.append(f'\t\toffset += sizeof({cpp_type});')
+    code.append("\t\treturn buffer;")
+    code.append("\t}")
+    code.append("")
+    code.append(f'\tstatic {class_name} deserialize(std::span<const cct::Byte> buffer) {{')
+    code.append(f'\t\t{class_name} obj;')
+    code.append("\t\tsize_t offset = 0;")
+    for col in table["columns"]:
+        cpp_type = type_mapping[col["type"]]["cpp"]
+        field_name = snake_to_field(col["name"])
+        if col["type"] == "str":
+            code.append(f'\t\tcct::UInt32 len_{field_name};')
+            code.append(f'\t\tstd::memcpy(&len_{field_name}, buffer.data() + offset, sizeof(cct::UInt32));')
+            code.append(f'\t\tlen_{field_name} = cct::ByteSwap(len_{field_name});')
+            code.append(f'\t\toffset += sizeof(cct::UInt32);')
+            code.append(f'\t\tobj.{field_name}.assign(reinterpret_cast<const char*>(buffer.data() + offset), len_{field_name});')
+            code.append(f'\t\toffset += len_{field_name};')
+        else:
+            code.append(f'\t\t{cpp_type} temp_{field_name};')
+            code.append(f'\t\tstd::memcpy(&temp_{field_name}, buffer.data() + offset, sizeof({cpp_type}));')
+            code.append(f'\t\tobj.{field_name} = cct::ByteSwap(temp_{field_name});')
+            code.append(f'\t\toffset += sizeof({cpp_type});')
+    code.append("\t\treturn obj;")
+    code.append("\t}")
+    code.append("};")
+    return "\n".join(code)
+
 def write_to_file(filename: str, content: str):
     output_dir = os.path.dirname(filename)
     if output_dir and not os.path.exists(output_dir):
@@ -238,9 +316,8 @@ def main():
     with open(json_file, "r", encoding="utf-8") as f:
         json_data = json.load(f)
         if lang == "cpp":
-            # Not implemented in this script (use your existing generate_bindings.py for cpp)
-            print("C++ generation is not implemented in this script.")
-            return
+            cpp_code = generate_cpp_file(json_data)
+            write_to_file(output_file, cpp_code)
         elif lang == "rust":
             rust_code = generate_sql_file(json_data) + "\n\n" +  generate_rust_file(json_data)
             write_to_file(output_file, rust_code)
