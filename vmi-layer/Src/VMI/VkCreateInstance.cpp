@@ -9,6 +9,7 @@
 
 VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkInstance* pInstance)
 {
+	cct::Logger::Info("vmi-layer has been injected!");
 	VkResult result = VK_ERROR_INITIALIZATION_FAILED;
 
 	if (pCreateInfo == nullptr)
@@ -56,6 +57,5 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 		VulkanMemoryInspector::GetInstance()->AddInstanceDispatchTable(GetKey(*pInstance), dispatchTable);
 	, VK_ERROR_INITIALIZATION_FAILED, vkCreateInstance(pCreateInfo, pAllocator, pInstance));
 
-	cct::Logger::Error("GEI everything ok returning ");
 	return VK_SUCCESS;
 }

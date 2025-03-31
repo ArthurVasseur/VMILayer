@@ -54,6 +54,11 @@ inline cct::Int32 VulkanMemoryInspector::GetFrameIndex() const
 	return _frameIndex;
 }
 
+inline void VulkanMemoryInspector::NextFrame()
+{
+	++_frameIndex;
+}
+
 inline void VulkanMemoryInspector::Send(std::span<cct::Byte> memoryBlock)
 {
 	if (!_socket)

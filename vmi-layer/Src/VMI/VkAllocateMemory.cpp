@@ -20,12 +20,12 @@ VkResult vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocate
 		.id = 0,
 		.deviceMemory = reinterpret_cast<intptr_t>(*pMemory),
 		.frameIndexAllocated = VulkanMemoryInspector::GetInstance()->GetFrameIndex(),
-		.allocatedAt = std::to_string(GetCurrentTimeStamp()),
+		.allocatedAt = GetCurrentTimeStamp(),
 		.allocationSize = static_cast<cct::Int64>(pAllocateInfo->allocationSize),
 		.frameIndexDeallocated = 0,
-		.deallocatedAt = "",
+		.deallocatedAt = 0,
 	};
-	auto buff = memoryUsage.serialize();
+	auto buff = Serialize(memoryUsage);
 	VulkanMemoryInspector::GetInstance()->Send(buff);
 
 	return result;
@@ -46,12 +46,12 @@ void vkFreeMemory(VkDevice device, VkDeviceMemory memory, const VkAllocationCall
 		.id = 0,
 		.deviceMemory = reinterpret_cast<intptr_t>(memory),
 		.frameIndexAllocated = 0,
-		.allocatedAt = "",
+		.allocatedAt = 0,
 		.allocationSize = 0,
 		.frameIndexDeallocated = VulkanMemoryInspector::GetInstance()->GetFrameIndex(),
-		.deallocatedAt = std::to_string(GetCurrentTimeStamp()),
+		.deallocatedAt = GetCurrentTimeStamp(),
 	};
-	auto buff = memoryUsage.serialize();
+	auto buff = Serialize(memoryUsage);
 	VulkanMemoryInspector::GetInstance()->Send(buff);
 }
 

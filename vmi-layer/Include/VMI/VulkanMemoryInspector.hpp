@@ -31,6 +31,7 @@ public:
 	const VkuDeviceDispatchTable* GetDeviceDispatchTable(void* device);
 	VkAllocationCallbacks GetAllocationCallbacks() const;
 	cct::Int32 GetFrameIndex() const;
+	void NextFrame();
 	void Send(std::span<cct::Byte> memoryBlock);
 
 private:

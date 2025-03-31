@@ -19,9 +19,10 @@ VkResult vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* pPresentInfo)
 
 	FrameInformation frameInformation = {
 		.frameIndex = VulkanMemoryInspector::GetInstance()->GetFrameIndex(),
-		.startedAt = std::to_string(GetCurrentTimeStamp())
+		.startedAt = GetCurrentTimeStamp()
 	};
-	auto buff = frameInformation.serialize();
+	auto buff = Serialize(frameInformation);
 	VulkanMemoryInspector::GetInstance()->Send(buff);
+	VulkanMemoryInspector::GetInstance()->NextFrame();
 	return result;
 }
