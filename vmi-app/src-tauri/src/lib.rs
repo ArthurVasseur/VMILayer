@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::f32::consts::E;
 use std::{fs, io};
 use std::path::{Path, PathBuf};
 use std::process;
@@ -23,7 +24,7 @@ pub fn run() {
 }
 
 #[tauri::command]
-fn launch_application(file_path: String, working_directory: String, command_args: String) {
+fn launch_application(file_path: String, working_directory: String, command_args: String) -> Result<(), String> {
     let file_path = PathBuf::from(file_path);
     let working_directory = PathBuf::from(working_directory);
     let command_args = command_args
@@ -46,15 +47,16 @@ fn launch_application(file_path: String, working_directory: String, command_args
     env.insert("VK_INSTANCE_LAYERS".into(), "VK_LAYER_AV_vmi".into());
     env.insert("VK_LOADER_LAYERS_ENABLE".into(), "VK_LAYER_AV_vmi".into());
     env.insert("ENABLE_VMI_LAYER".into(), "1".into());
-    //env.insert("VK_LOADER_DEBUG".into(), "all".into());
+    env.insert("VK_LOADER_DEBUG".into(), "all".into());
 
     match spawn_detached_process(file_path.as_path(), &command_args, &working_directory, &env) {
-        Ok(_) => println!(
-            "Successfully launched application with file path: {}",
-            file_path.display()
-        ),
+        Ok(_) => {
+            println!("Successfully launched application with file path: {}", file_path.display());
+            return Ok(());
+        }
         Err(e) => {
-            eprintln!("Error launching application: {}", e)
+            eprintln!("Error launching application: {}", e);
+            return Err(format!("Error launching application: {}", e));
         }
     }
 }

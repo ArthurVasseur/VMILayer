@@ -2,8 +2,8 @@ set_policy("package.sync_requires_to_deps", true)
 add_rules("mode.debug", "mode.release")
 add_repositories("Concerto-xrepo https://github.com/ConcertoEngine/xmake-repo.git main")
 
-add_requires("cppzmq",  {configs = {debug = true, with_symbols = true}})
-add_requires("vulkan-headers", "concerto-core", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "python 3.x")
+add_requires("concerto-core", {configs = {shared = false}})
+add_requires("vulkan-headers", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "python 3.x")
 
 -- VK_ADD_IMPLICIT_LAYER_PATH=D:/Repositories/Vulkan/VMILayer/vmi-layer/VK_LAYER_vmi.json
 -- VK_LAYERS_ALLOW_ENV_VAR=1

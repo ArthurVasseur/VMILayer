@@ -88,8 +88,8 @@ fn main() {
                         }
                         Packet::MemoryUsage(memory_usage_event) => {
                             tx.execute(
-                                "INSERT INTO memory_usage (timestamp, frame_number, memory_type, memory_size, memory_usage)
-                                VALUES (?1, ?2, ?3, ?4, ?5)",
+                                "INSERT INTO memory_usage (device_memory, frame_index_allocated, allocated_at, allocation_size, frame_index_deallocated, deallocated_at)
+                                VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                                 params![
                                     memory_usage_event.device_memory,
                                     memory_usage_event.frame_index_allocated,
@@ -114,7 +114,6 @@ fn main() {
                 }
 
                 tx.commit().expect("Could not commit transaction");
-                println!("Inserted {} in one batch", buffer.len());
                 buffer.clear();
             }
         }

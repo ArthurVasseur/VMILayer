@@ -8,6 +8,7 @@ import type { CheckedState } from "@radix-ui/react-checkbox";
 import { invoke } from "@tauri-apps/api/core";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { open } from '@tauri-apps/plugin-dialog';
+import { useNavigate } from 'react-router'
 
 interface LaunchApplicationModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface LaunchApplicationModalProps {
 }
 
 export default function LaunchApplicationModal({ isOpen, setIsOpen }: LaunchApplicationModalProps) {
+  const navigate = useNavigate()
   const [filePath, setFilePath] = useState<string>("");
   const [useDifferentWD, setUseDifferentWD] = useState<CheckedState>(false);
   const [workingDir, setWorkingDir] = useState<string>("");
@@ -36,8 +38,16 @@ export default function LaunchApplicationModal({ isOpen, setIsOpen }: LaunchAppl
       setAlertMessage("Please select an application before launching.");
       return;
     }
-    setIsOpen(false);
-    invoke("launch_application", { filePath, workingDirectory: workingDir, commandArgs });
+
+    invoke("launch_application", { filePath, workingDirectory: workingDir, commandArgs }).
+    then((message) => {
+      setIsOpen(false);
+      navigate("/trace")
+    })
+    .catch((error) => {
+      setIsOpen(true);
+      setAlertMessage(error);
+    });
   };
 
   return (
