@@ -50,11 +50,10 @@ VkResult vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo, const VkAlloc
 		return result;
 	}
 
-	VkuInstanceDispatchTable dispatchTable = {};
-	vkuInitInstanceDispatchTable(*pInstance, &dispatchTable, getProcAddr);
+	InstanceDispatchTable dispatchTable(*pInstance, getProcAddr);
 
 	VMI_CATCH_AND_RETURN(
-		VulkanMemoryInspector::GetInstance()->AddInstanceDispatchTable(GetKey(*pInstance), dispatchTable);
+		VulkanMemoryInspector::GetInstance()->AddInstanceDispatchTable(GetKey(*pInstance), std::move(dispatchTable));
 	, VK_ERROR_INITIALIZATION_FAILED, vkCreateInstance(pCreateInfo, pAllocator, pInstance));
 
 	return VK_SUCCESS;

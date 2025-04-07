@@ -25,11 +25,10 @@ VkResult vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInf
 	if (result != VK_SUCCESS)
 		return result;
 
-	VkuDeviceDispatchTable dispatchTable = {};
-	vkuInitDeviceDispatchTable(*pDevice, &dispatchTable, getDeviceProcAddr);
+	DeviceDispatchTable dispatchTable(*pDevice, getDeviceProcAddr);
 
 	VMI_CATCH_AND_RETURN(
-		VulkanMemoryInspector::GetInstance()->AddDeviceDispatchTable(GetKey(*pDevice), dispatchTable);
+		VulkanMemoryInspector::GetInstance()->AddDeviceDispatchTable(GetKey(*pDevice), std::move(dispatchTable));
 	, VK_ERROR_INITIALIZATION_FAILED, vkCreateDevice(physicalDevice, pCreateInfo, pAllocator, pDevice));
 
 	return VK_SUCCESS;

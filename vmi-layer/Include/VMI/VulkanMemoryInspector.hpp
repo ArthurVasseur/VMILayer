@@ -9,8 +9,8 @@
 #include <span>
 #include <unordered_map>
 #include <Concerto/Core/Network/Socket.hpp>
-#include "VMI/VulkanFunctions.hpp"
-#define VMI_GET_PROC_ADDR(func) if(!strcmp(pName, #func)) return (PFN_vkVoidFunction)&(func)
+#include "VMI/VulkanCommands.hpp"
+
 struct LowerAllocation
 {
 	const VkAllocationCallbacks* allocationCallbacks;
@@ -25,10 +25,10 @@ public:
 	static void CreateInstance();
 	static void DestroyInstance();
 
-	void AddInstanceDispatchTable(void* instance, VkuInstanceDispatchTable table);
-	void AddDeviceDispatchTable(void* device, VkuDeviceDispatchTable table);
-	const VkuInstanceDispatchTable* GetInstanceDispatchTable(void* instance);
-	const VkuDeviceDispatchTable* GetDeviceDispatchTable(void* device);
+	void AddInstanceDispatchTable(void* instance, InstanceDispatchTable table);
+	void AddDeviceDispatchTable(void* device, DeviceDispatchTable table);
+	const InstanceDispatchTable* GetInstanceDispatchTable(void* instance);
+	const DeviceDispatchTable* GetDeviceDispatchTable(void* device);
 	VkAllocationCallbacks GetAllocationCallbacks() const;
 	cct::Int32 GetFrameIndex() const;
 	void NextFrame();
@@ -44,10 +44,10 @@ private:
 	static std::shared_ptr<VulkanMemoryInspector> instance;
 
 	std::mutex instanceDispatchTablesMutex;
-	std::unordered_map<void*, VkuInstanceDispatchTable> instanceDispatchTables;
+	std::unordered_map<void*, InstanceDispatchTable> instanceDispatchTables;
 
 	std::mutex deviceDispatchTablesMutex;
-	std::unordered_map<void*, VkuDeviceDispatchTable> deviceDispatchTables;
+	std::unordered_map<void*, DeviceDispatchTable> deviceDispatchTables;
 
 
 	VkAllocationCallbacks _allocationCallbacks;

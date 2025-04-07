@@ -15,20 +15,30 @@ add_requires("vulkan-headers", "mimalloc", "vulkan-utility-libraries", "nlohmann
 target("vmi-layer")
     set_kind("shared")
     set_languages("cxx20")
-    add_files("Src/VMI/**.cpp", "./commands.cpp")
-    add_includedirs("Include")
-    add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl", "commands.hpp")
+    add_files("Src/VMI/**.cpp")
+    add_includedirs("Include", ".")
+    add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl")
     add_packages("vulkan-headers", "concerto-core", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "cppzmq")
     add_defines("VK_NO_PROTOTYPES")
 
     on_config(function(target)
+        import('net.http')
+        
         local out_folder = target:autogendir()
         local out_file = path.join(out_folder, "VMI", "Bindings.hpp")
+        target:add("headerfiles", header_file)
+        
+        -- Bindings generation
         local header_file = target:autogendir() .. "/(VMI/*.hpp)"
         os.execv("python.exe", { "../generate_bindings.py", "cpp", out_file, "../schema.json" })
-
-        target:add("headerfiles", header_file)
         target:add("includedirs", out_folder, {public = true})
+
+        -- Vulkan Commands generation
+        http.download('https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/main/xml/vk.xml', path.join(out_folder, "vk.xml"))
+        local out_file = path.join(out_folder, "VMI", "VulkanCommands.cpp")
+        os.execv("python.exe", { "./gen_commands.py",  path.join(out_folder, "vk.xml"), path.join(out_folder, "VMI")})
+        target:add("files", out_file, {public = true})
+
     end)
 
     after_build(function(target)

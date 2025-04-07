@@ -12,19 +12,19 @@ inline std::shared_ptr<VulkanMemoryInspector> VulkanMemoryInspector::GetInstance
 	return instance;
 }
 
-inline void VulkanMemoryInspector::AddInstanceDispatchTable(void* instance, VkuInstanceDispatchTable table)
+inline void VulkanMemoryInspector::AddInstanceDispatchTable(void* instance, InstanceDispatchTable table)
 {
 	std::lock_guard _(instanceDispatchTablesMutex);
 	instanceDispatchTables.emplace(instance, table);
 }
 
-inline void VulkanMemoryInspector::AddDeviceDispatchTable(void* device, VkuDeviceDispatchTable table)
+inline void VulkanMemoryInspector::AddDeviceDispatchTable(void* device, DeviceDispatchTable table)
 {
 	std::lock_guard _(deviceDispatchTablesMutex);
 	deviceDispatchTables.emplace(device, table);
 }
 
-inline const VkuInstanceDispatchTable* VulkanMemoryInspector::GetInstanceDispatchTable(void* instance)
+inline const InstanceDispatchTable* VulkanMemoryInspector::GetInstanceDispatchTable(void* instance)
 {
 	std::lock_guard _(instanceDispatchTablesMutex);
 
@@ -34,7 +34,7 @@ inline const VkuInstanceDispatchTable* VulkanMemoryInspector::GetInstanceDispatc
 	return &it->second;
 }
 
-inline const VkuDeviceDispatchTable* VulkanMemoryInspector::GetDeviceDispatchTable(void* device)
+inline const DeviceDispatchTable* VulkanMemoryInspector::GetDeviceDispatchTable(void* device)
 {
 	std::lock_guard _(deviceDispatchTablesMutex);
 

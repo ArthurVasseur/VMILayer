@@ -3,9 +3,10 @@
 //
 
 
-#include "VMI/VulkanFunctions.hpp"
+#include "VMI/VulkanCommands.hpp"
+
 
 void vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator)
 {
-
+	CCT_ASSERT_FALSE("");
 }
