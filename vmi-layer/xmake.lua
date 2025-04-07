@@ -15,9 +15,9 @@ add_requires("vulkan-headers", "mimalloc", "vulkan-utility-libraries", "nlohmann
 target("vmi-layer")
     set_kind("shared")
     set_languages("cxx20")
-    add_files("Src/VMI/**.cpp")
+    add_files("Src/VMI/**.cpp", "./commands.cpp")
     add_includedirs("Include")
-    add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl")
+    add_headerfiles("Include/VMI/*.hpp", "Include/VMI/*.inl", "commands.hpp")
     add_packages("vulkan-headers", "concerto-core", "mimalloc", "vulkan-utility-libraries", "nlohmann_json", "cppzmq")
     add_defines("VK_NO_PROTOTYPES")
 

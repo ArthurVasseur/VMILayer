@@ -6,8 +6,6 @@
 #include "VMI/VulkanFunctions.hpp"
 #include "VMI/VulkanMemoryInspector.hpp"
 
-#define VMI_GET_PROC_ADDR(func) if(!strcmp(pName, #func)) return (PFN_vkVoidFunction)&(func)
-
 
 PFN_vkVoidFunction vkGetInstanceProcAddr(VkInstance instance, const char* pName)
 {

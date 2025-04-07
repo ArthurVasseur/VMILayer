@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <Concerto/Core/Network/Socket.hpp>
 #include "VMI/VulkanFunctions.hpp"
-
+#define VMI_GET_PROC_ADDR(func) if(!strcmp(pName, #func)) return (PFN_vkVoidFunction)&(func)
 struct LowerAllocation
 {
 	const VkAllocationCallbacks* allocationCallbacks;
