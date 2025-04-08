@@ -23,21 +23,31 @@ target("vmi-layer")
 
     on_config(function(target)
         import('net.http')
-        
+
         local out_folder = target:autogendir()
         local out_file = path.join(out_folder, "VMI", "Bindings.hpp")
-        target:add("headerfiles", header_file)
-        
+
         -- Bindings generation
         local header_file = target:autogendir() .. "/(VMI/*.hpp)"
+        target:add("headerfiles", header_file)
         os.execv("python.exe", { "../generate_bindings.py", "cpp", out_file, "../schema.json" })
         target:add("includedirs", out_folder, {public = true})
 
+        -- Vulkan Struct to JSON generation
+        local out_json_file = path.join(out_folder, "VMI", "VulkanStructToJson.cpp")
+        local out_json_hpp_file = path.join(out_folder, "VMI", "VulkanStructToJson.hpp")
+        target:add("files", out_json_file, {public = true})
+        target:add("headerfiles", out_json_hpp_file)
+
         -- Vulkan Commands generation
         http.download('https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/main/xml/vk.xml', path.join(out_folder, "vk.xml"))
-        local out_file = path.join(out_folder, "VMI", "VulkanCommands.cpp")
+        local out_cpp_file = path.join(out_folder, "VMI", "VulkanCommands.cpp")
+        local out_hpp_file = path.join(out_folder, "VMI", "VulkanCommands.hpp")
+        target:add("files", out_cpp_file, {public = true})
+        target:add("headerfiles", out_hpp_file)
+
         os.execv("python.exe", { "./gen_commands.py",  path.join(out_folder, "vk.xml"), path.join(out_folder, "VMI")})
-        target:add("files", out_file, {public = true})
+        --python.exe "./gen_commands.py" "build/.gens/vmi-layer/windows/x64/debug/vk.xml" "build/.gens/vmi-layer/windows/x64/debug/VMI"
 
     end)
 
