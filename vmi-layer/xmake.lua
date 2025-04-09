@@ -41,12 +41,13 @@ target("vmi-layer")
 
         -- Vulkan Commands generation
         http.download('https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/main/xml/vk.xml', path.join(out_folder, "vk.xml"))
+        http.download('https://raw.githubusercontent.com/KhronosGroup/Vulkan-Docs/main/xml/video.xml', path.join(out_folder, "video.xml"))
         local out_cpp_file = path.join(out_folder, "VMI", "VulkanCommands.cpp")
         local out_hpp_file = path.join(out_folder, "VMI", "VulkanCommands.hpp")
         target:add("files", out_cpp_file, {public = true})
         target:add("headerfiles", out_hpp_file)
 
-        os.execv("python.exe", { "./gen_commands.py",  path.join(out_folder, "vk.xml"), path.join(out_folder, "VMI")})
+        os.execv("python.exe", { "./gen_commands.py",  path.join(out_folder, "vk.xml"),  path.join(out_folder, "video.xml"), path.join(out_folder, "VMI")})
         --python.exe "./gen_commands.py" "build/.gens/vmi-layer/windows/x64/debug/vk.xml" "build/.gens/vmi-layer/windows/x64/debug/VMI"
 
     end)

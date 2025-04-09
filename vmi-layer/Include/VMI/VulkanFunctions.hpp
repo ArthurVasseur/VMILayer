@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <memory>
+#include <thread>
 
 #include "VMI/Defines.hpp"
 
@@ -57,6 +58,12 @@ static cct::Int64 GetCurrentTimeStamp()
 	auto now = system_clock::now();
 	auto duration = now.time_since_epoch();
 	return duration_cast<microseconds>(duration).count();
+}
+
+static cct::Int64 GetCurrentThreadId()
+{
+  auto id = std::this_thread::get_id();
+	return std::hash<std::thread::id>()(id);
 }
 
 #endif //GEI_VULKANFUNCTION_HPP

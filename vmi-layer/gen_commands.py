@@ -50,8 +50,9 @@ class VulkanRegistryParser:
        - structs_features: mapping struct name to list of feature macros (e.g. VK_VERSION_1_0)
        - structs_extensions: mapping struct name to list of extension macros (e.g. VK_KHR_swapchain)
     """
-    def __init__(self, xml_file):
-        self.xml_file = xml_file
+    def __init__(self, xml_vk_file, xml_video_file):
+        self.xml_vk_file = xml_vk_file
+        self.xml_video_file = xml_video_file
         self.platform_defines = {}
         self.commands = {}
         self.features = {}
@@ -63,8 +64,13 @@ class VulkanRegistryParser:
         self.handles = []
 
     def parse(self):
-        tree = ET.parse(self.xml_file)
-        registry = tree.getroot()
+        xml_vk_file_tree = ET.parse(self.xml_vk_file).getroot()
+        xml_video_file_tree = ET.parse(self.xml_video_file).getroot()
+
+        for child in xml_video_file_tree:
+            xml_vk_file_tree.append(child)
+
+        registry = xml_vk_file_tree
         self._parse_platforms(registry)
         self._parse_commands(registry)
         self._parse_features(registry)
@@ -120,6 +126,7 @@ class VulkanRegistryParser:
                 "name": name,
                 "return_value": return_value if return_value != "void" else None,
                 "param_names": param_names,
+                "param_types": (p.split(",")[:2] for p in params),
                 "params": params,
                 "kind": cmd_kind,
             }
@@ -272,6 +279,7 @@ class CppCommandGenerator(BaseGenerator):
             f.write('#include "VMI/VulkanMemoryInspector.hpp"\n')
             f.write('#include "VMI/VulkanFunctions.hpp"\n')
             f.write('#include "VMI/Bindings.hpp"\n\n')
+            f.write('#include "VMI/VulkanStructToJson.hpp"\n\n')
             f.write("// Core commands\n\n")
             for feature, cmds in self.registry_data["features"].items():
                 self._generate_cpp_code([feature], cmds, f)
@@ -289,21 +297,49 @@ class CppCommandGenerator(BaseGenerator):
         for cmd in cmds:
             if cmd["name"] in EXCLUDE.get("instance", []) or cmd["name"] in EXCLUDE.get("device", []):
                 continue
+            json_data = "{"
+            for pname, ptype in zip(cmd['param_names'], cmd['param_types']):
+                ptype = ptype[0]
+                ptype = ptype.replace(pname, "").strip()
+                is_pointer = "*" in ptype
+                if is_pointer:
+                    if ptype in self.registry_data["structs"]:
+                        json_data += f'{{"{pname}", *{pname}}}'
+                    else:
+                        json_data += f'{{"{pname}", reinterpret_cast<uintptr_t>({pname})}}'
+                else:
+                    if ptype in self.registry_data["handles"]:
+                        json_data += f'{{"{pname}", reinterpret_cast<uintptr_t>({pname})}}'
+                    else:
+                        json_data += f'{{"{pname}", {pname}}}'
+                if pname != cmd['param_names'][-1]:
+                    json_data += ", "
+            json_data += "}"
             f.write(f"{cmd['prototype']}\n{{\n")
             f.write(
-f"""    const auto* dp = VulkanMemoryInspector::GetInstance()->Get{cmd["kind"].title()}DispatchTable(GetKey({cmd['param_names'][0]}));
-    if (!dp)
-    {{
-        CCT_ASSERT_FALSE("Could not get the device dispatch table");
-        return {"VK_ERROR_INVALID_EXTERNAL_HANDLE" if cmd['return_value'] else ''};
-    }}
-    VulkanEvent vmiEvent = {{}};
-    auto buff = Serialize(vmiEvent);
-    VulkanMemoryInspector::GetInstance()->Send(buff);
-    return dp->{cmd['name'][2:]}({', '.join(cmd['param_names'])});
+f"""	const auto* dp = VulkanMemoryInspector::GetInstance()->Get{cmd["kind"].title()}DispatchTable(GetKey({cmd['param_names'][0]}));
+	if (!dp)
+	{{
+		CCT_ASSERT_FALSE("Could not get the device dispatch table");
+		return {"VK_ERROR_INVALID_EXTERNAL_HANDLE" if cmd['return_value'] else ''};
+	}}
+	{"auto result = " if cmd["return_value"] != None else ""}dp->{cmd['name'][2:]}({', '.join(cmd['param_names'])});
+	VulkanEvent vmiEvent = {{
+		.id = 0,
+		.timestamp = GetCurrentTimeStamp(),
+		.frameNumber = VulkanMemoryInspector::GetInstance()->GetFrameIndex(),
+		.functionName = "{cmd['name']}",
+		.parameters = nlohmann::json{json_data}.dump(),
+		.resultCode = {"static_cast<cct::Int32>(result)" if cmd["return_value"] != None else "0"},
+		.threadId = GetCurrentThreadId(),
+    }};
+	auto buff = Serialize(vmiEvent);
+	VulkanMemoryInspector::GetInstance()->Send(buff);
+	{"return result;" if cmd["return_value"] != None else ""};
 }}\n\n""")
         if defines and cmds:
             f.write(f"#endif // {defines_str}\n\n")
+
 
     def _generate_get_proc_addr_code(self, object_type, f):
         function_name = "vkGetDeviceProcAddr" if object_type == "VkDevice" else "vkGetInstanceProcAddr"
@@ -559,14 +595,15 @@ class GeneratorFactory:
 # -----------------------------------------------------------------------------
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python gen_commands.py <vk.xml> <output_folder>")
+    if len(sys.argv) != 4:
+        print("Usage: python gen_commands.py <vk.xml> <video.xml> <output_folder>")
         sys.exit(1)
-    xml_file = sys.argv[1]
-    output_folder = sys.argv[2]
+    xml_vk_file = sys.argv[1]
+    xml_video_file = sys.argv[2]
+    output_folder = sys.argv[3]
 
     # Parse the Vulkan registry XML.
-    parser = VulkanRegistryParser(xml_file)
+    parser = VulkanRegistryParser(xml_vk_file, xml_video_file)
     registry_data = parser.parse()
 
     # Generate command header and source files (existing functionality).

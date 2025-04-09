@@ -25,14 +25,6 @@
           "not_null": true
         },
         {
-          "name": "event_type",
-          "type": "str"
-        },
-        {
-          "name": "memory_delta",
-          "type": "i64"
-        },
-        {
           "name": "parameters",
           "type": "str"
         },
