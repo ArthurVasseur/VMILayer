@@ -1,11 +1,12 @@
 use std::collections::HashMap;
-use std::f32::consts::E;
 use std::{fs, io};
 use std::path::{Path, PathBuf};
 use std::process;
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::params;
+mod bindings;
+pub fn run(pool: &Pool<SqliteConnectionManager>) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -18,7 +19,11 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler!(launch_application))
+        .manage(pool.clone())
+        .invoke_handler(tauri::generate_handler![
+            launch_application,
+            get_frame_data,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -59,6 +64,24 @@ fn launch_application(file_path: String, working_directory: String, command_args
             return Err(format!("Error launching application: {}", e));
         }
     }
+}
+
+#[tauri::command]
+fn get_frame_data(pool: tauri::State<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>, size: u32) -> Result<Vec<bindings::FrameInformation>, String> {
+    let conn = pool.get().map_err(|e| format!("Failed to get connection from pool: {}", e))?;
+    let mut stmt = conn.prepare("SELECT frame_index, started_at FROM frame_information LIMIT ?").map_err(|e| format!("Failed to prepare statement: {}", e))?;
+    let rows = stmt.query_map(params![size], |row| {
+        Ok(bindings::FrameInformation {
+            frame_index: row.get(0)?,
+            started_at: row.get(1)?,
+        })
+    }).map_err(|e| format!("Failed to query map: {}", e))?;
+
+    let mut frames = Vec::new();
+    for frame in rows {
+        frames.push(frame.map_err(|e| format!("Error reading row: {}", e))?);
+    }
+    Ok(frames)
 }
 
 #[cfg(windows)]

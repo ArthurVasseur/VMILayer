@@ -302,11 +302,21 @@ class CppCommandGenerator(BaseGenerator):
                 ptype = ptype[0]
                 ptype = ptype.replace(pname, "").strip()
                 is_pointer = "*" in ptype
+                is_array = "[" in ptype and "]" in ptype
                 if is_pointer:
                     if ptype in self.registry_data["structs"]:
                         json_data += f'{{"{pname}", *{pname}}}'
                     else:
                         json_data += f'{{"{pname}", reinterpret_cast<uintptr_t>({pname})}}'
+                elif is_array:
+                    if ptype in self.registry_data["structs"]:
+                        json_data += f'{{"{pname}", std::span(reinterpret_cast<const {ptype}*>(value.{pname}), value.{pname})}}'
+                    else:
+                        #remmove the array size from the type and get the array size
+                        split = ptype.split("[")
+                        ptype = split[0].strip()
+                        array_size = split[1].replace("]", "").strip()
+                        json_data += f'{{"{pname}", std::span({pname}, {array_size})}}'
                 else:
                     if ptype in self.registry_data["handles"]:
                         json_data += f'{{"{pname}", reinterpret_cast<uintptr_t>({pname})}}'

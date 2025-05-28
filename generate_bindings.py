@@ -20,7 +20,7 @@ def generate_rust_binding(table: dict) -> str:
     struct_name = snake_to_camel(table["name"])
     code = []
     # Struct definition
-    code.append(f"#[derive(Debug)]")
+    code.append(f"#[derive(Debug, serde::Serialize)]")
     code.append(f"pub struct {struct_name} {{")
     for col in table["columns"]:
         rust_type = type_mapping[col["type"]]["rust"]
@@ -55,27 +55,25 @@ def generate_rust_binding(table: dict) -> str:
         col_type = col["type"]
         field_name = col["name"]
 
-        code.append(f"        // Deserialize field: {field_name}")
+        code.append(f"         // Deserialize field: {field_name}")
         if col_type in ["i32"] or col_type == "i64":
-            code.append(f"         if offset + std::mem::size_of::<{col_type}>() > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned());}}")
-            code.append(f"         let slice: Result<_, _> = data[offset..offset+std::mem::size_of::<{col_type}>()].try_into();")
-            code.append(f"         if slice.is_err() {{ return Err(\"Failed to convert to {col_type}\".to_owned()); }}")
+            code.append(f"         if offset + std::mem::size_of::<{col_type}>() > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned()); }}")
+            code.append(f"         let slice = data[offset..offset + std::mem::size_of::<{col_type}>()].try_into();")
+            code.append(f"         if slice.is_err() {{ return Err(format!(\"Failed to convert to {col_type} at line: {{}}\", line!())); }}")
             code.append(f"         let slice = slice.unwrap();")
             code.append(f"         let {field_name} = {col_type}::from_be_bytes(slice);")
             code.append(f"         offset += std::mem::size_of::<{col_type}>();")
         elif col_type == "str":
-            code.append(f"         if offset + std::mem::size_of::<u32>() > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned());}}")
-            code.append(f"         let mut slice_result: Result<_, _> = data[offset..offset+std::mem::size_of::<u32>()].try_into();")
-            code.append(f"         if slice_result.is_err() {{ return Err(\"Failed to convert to i32\".to_owned()); }}")
-            code.append(f"         let mut slice = slice_result.unwrap();")
-            code.append(f"         let len = i32::from_be_bytes(slice);")
+            code.append(f"         if offset + std::mem::size_of::<u32>() > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned()); }}")
+            code.append(f"         let slice_result = data[offset..offset + std::mem::size_of::<u32>()].try_into();")
+            code.append(f"         if slice_result.is_err() {{ return Err(format!(\"Failed to convert to u32 at line: {{}}\", line!())); }}")
+            code.append(f"         let slice = slice_result.unwrap();")
+            code.append(f"         let len = u32::from_be_bytes(slice);")
             code.append(f"         offset += std::mem::size_of::<u32>();")
-            code.append(f"         if offset + len as usize > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned());}}")
-            code.append(f"         slice_result = data[offset..offset+len as usize].try_into();")
-            code.append(f"         if slice_result.is_err() {{ return Err(\"Failed to convert to i32\".to_owned()); }}")
-            code.append(f"         slice = slice_result.unwrap();")
-            code.append(f"         let s = String::from_utf8(slice.to_vec());")
-            code.append(f"         if s.is_err() {{ return Err(\"Failed to convert to String\".to_owned()); }}")
+            code.append(f"         if offset + len as usize > data.len() {{ return Err(\"Not enough data for field: {field_name}\".to_owned()); }}")
+            code.append(f"         let str_slice = &data[offset..offset + len as usize];")
+            code.append(f"         let s = String::from_utf8(str_slice.to_vec());")
+            code.append(f"         if s.is_err() {{ return Err(format!(\"Failed to convert to String at line: {{}}\", line!())); }}")
             code.append(f"         let {field_name} = s.unwrap();")
             code.append(f"         offset += len as usize;")
         field_values.append(field_name)
@@ -140,7 +138,7 @@ def generate_rust_file(json_data: dict) -> str:
         bindings.append(f"                  Err(error_message) => {{println!(\"Failed to deserialize {variant}, {{}}: \", error_message); None}}")
         bindings.append("                }")
         bindings.append("            },")
-    bindings.append("            _ => None,")
+    bindings.append("            v => {println!(\"Unknown enum value: {}\", v);None}")
     bindings.append("        }")
     bindings.append("    }")
     bindings.append("}\n")

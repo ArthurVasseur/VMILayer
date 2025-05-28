@@ -17,6 +17,7 @@ fn init_database(pool: &Pool<SqliteConnectionManager>) {
         .expect("Failed to create database schema");
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn main() {
     let now: DateTime<chrono::Utc> = chrono::Utc::now();
     let database_name = format!("{}.vmi", now.format("%Y-%m-%d_%H-%M-%S-%3f"));
@@ -72,14 +73,12 @@ fn main() {
                     match event {
                         Packet::VulkanEvent(vulkan_event) => {
                             tx.execute(
-                                "INSERT INTO vulkan_events (timestamp, frame_number, function_name, event_type, memory_delta, parameters, result_code, thread_id)
-                                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                "INSERT INTO vulkan_event (timestamp, frame_number, function_name, parameters, result_code, thread_id)
+                                VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                                 params![
                                     vulkan_event.timestamp,
                                     vulkan_event.frame_number,
                                     vulkan_event.function_name,
-                                    vulkan_event.event_type,
-                                    vulkan_event.memory_delta,
                                     vulkan_event.parameters,
                                     vulkan_event.result_code,
                                     vulkan_event.thread_id,
@@ -119,7 +118,7 @@ fn main() {
         }
     });
 
-    app_lib::run();
+    app_lib::run(&pool);
 }
 
 
@@ -134,8 +133,8 @@ fn handle_client(mut stream: std::net::TcpStream, zmq_tx: mpsc::Sender<Packet>) 
                     eprintln!("Failed to deserialize packet");
                     continue;
                 }
-                zmq_tx.send(packet.unwrap()).unwrap_or_else(|_| {
-                    eprintln!("Failed to send packet to main thread");
+                zmq_tx.send(packet.unwrap()).unwrap_or_else(|e| {
+                    eprintln!("Failed to send packet to main thread: {}", e);
                 });
             }
             Err(e) => {
